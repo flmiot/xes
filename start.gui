@@ -1,0 +1,4 @@
+module load anaconda
+echo "Starting xes analyis tool..."
+cd /gpfs/exfel/data/scratch/otteflor/tools/xes/
+python gui.py

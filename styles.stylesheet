@@ -1,0 +1,11 @@
+#AnalyzerTree {
+	font-size: 8pt;
+}
+
+#BGModelTree {
+	font-size: 8pt;
+}
+
+#ScanTree {
+	font-size: 8pt;
+}

@@ -5,7 +5,7 @@ from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.parametertree import Parameter, parameterTypes, registerParameterType
 
 from xes import experiment
-from xes.analysis import Analyzer, BGModel
+from xes.analysis import Analyzer, Calibration
 
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -73,12 +73,13 @@ class CustomParameter(parameterTypes.GroupParameter):
 
 
 class AnalyzerROI(pg.ROI):
-    def __init__(self, name, position, size, angle, monitor):
+    def __init__(self, name, position, size, monitor): #angle
 
         pg.ROI.__init__(self, pos=position, size=size) #, scaleSnap=True, translateSnap=True)
         self.addScaleHandle([1, 1], [0, 0])
-        self.addRotateHandle([0, 0], [0.5, 0.5])
-        self.setAngle(angle)
+        # self.addScaleHandle([0, 0], [0, 0])
+
+        # self.addRotateHandle([0, 0], [0.5, 0.5])
 
         self.analyzer = Analyzer(name)
         experiment.add_analyzer(self.analyzer)
@@ -87,16 +88,28 @@ class AnalyzerROI(pg.ROI):
 
 
 class AnalyzerParameter(CustomParameter):
+    """ Analyzer parameter class represents an analyzer object. Parameters are
+
+    ------------------  --------------------------------------------------
+    Include             Include this object in analysis
+    Energy calibration  Corresponding energy calibration used for analysis
+    Energy offset       Energy offset for this analyzer, relative to calibration
+    ------------------  --------------------------------------------------
+    """
+
+
     def __init__(self, **opts):
         self.roi = AnalyzerROI(opts['name'], opts['position'], opts['size'],
-            opts['angle'], opts['gui'].monitor)
+            opts['gui'].monitor) # opts['angle'],
 
-        children = []
-        children.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
-        # children.append({'name': 'Pixel-wise', 'type':'bool', 'value':opts['pixel_wise']})
-        children.append({'name': 'Energy offset', 'type':'float', 'value':opts['offset'],
+        c = []
+        c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
+        names = list([c.name for c in experiment.calibrations])
+        c.append({'name': 'Energy calibration', 'type':'list', 'values':names,
+            'value':opts['calibration']})
+        c.append({'name': 'Energy offset', 'type':'float', 'value':opts['offset'],
             'step':0.1, 'siPrefix':False, 'suffix': 'eV'})
-        opts['children'] = children
+        opts['children'] = c
         super(self.__class__, self).__init__(**opts)
 
 
@@ -105,48 +118,59 @@ class AnalyzerParameter(CustomParameter):
         self.roi.analyzer.energy_offset = self.child('Energy offset').value()
         # self.roi.analyzer.pixel_wise = self.child('Pixel-wise').value()
         super(self.__class__, self).update(parameter)
+
+    def update_lists(self):
+        d = dict()
+        d['Energy calibration'] = list([c.name for c in experiment.calibrations])
+        super(self.__class__, self).update_lists(d)
 
 registerParameterType('analyzer', AnalyzerParameter, override=True)
 
 
 class BackgroundROI(pg.ROI):
-    def __init__(self, name, position, size, angle, monitor):
+    def __init__(self, name, position, size, monitor): # angle,
+        # Make this a different color
 
         pg.ROI.__init__(self, pos=position, size=size) #, scaleSnap=True, translateSnap=True)
         self.addScaleHandle([1, 1], [0, 0])
-        self.addRotateHandle([0, 0], [0.5, 0.5])
-        self.setAngle(angle)
+        # self.addRotateHandle([0, 0], [0.5, 0.5])
+        # self.setAngle(angle)
 
         self.background_roi = Analyzer(name)
         experiment.add_background_roi(self.background_roi)
         self.setToolTip(self.background_roi.name)
-        monitor.add_analyzer_roi(self)
+        #monitor.add_analyzer_roi(self)
 
 
 class BackgroundParameter(CustomParameter):
     def __init__(self, **opts):
-        self.roi = AnalyzerROI(opts['name'], opts['position'], opts['size'],
-            opts['angle'], opts['gui'].monitor)
+        self.roi = BackgroundROI(opts['name'], opts['position'], opts['size'],
+            opts['gui'].monitor) # opts['angle'],
 
-        children = []
-        children.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
-        # children.append({'name': 'Pixel-wise', 'type':'bool', 'value':opts['pixel_wise']})
-        children.append({'name': 'Energy offset', 'type':'float', 'value':opts['offset'],
-            'step':0.1, 'siPrefix':False, 'suffix': 'eV'})
-        opts['children'] = children
+        c = []
+        c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
+        opts['children'] = c
         super(self.__class__, self).__init__(**opts)
 
 
     def update(self, parameter):
-        self.roi.analyzer.active = self.child('Include').value()
-        self.roi.analyzer.energy_offset = self.child('Energy offset').value()
-        # self.roi.analyzer.pixel_wise = self.child('Pixel-wise').value()
+        self.roi.background_roi.active = self.child('Include').value()
         super(self.__class__, self).update(parameter)
 
-registerParameterType('analyzer', AnalyzerParameter, override=True)
+registerParameterType('backgroundRoi', BackgroundParameter, override=True)
 
 
 class ScanParameter(CustomParameter):
+    """ Scan parameter class represents a scan object. Parameters are
+
+    ------------------  --------------------------------------------------
+    Include             Include this object in analysis
+    Monitor: SUM        When displaying this object in monitor, sum all images
+    Offset (x)          Shift all images in x-direction
+    Offset (y)          Shift all images in y-direction
+    ------------------  --------------------------------------------------
+    """
+
     def __init__(self, **opts):
         scan = opts['scan']
         elastic_scan_name = opts['elastic_scan_name']
@@ -154,7 +178,6 @@ class ScanParameter(CustomParameter):
 
         include = opts['include']
         monitor_sum = opts['monitor_sum']
-        energy_scan = opts['energy_scan']
         offset_x = opts['offset_x']
         offset_y = opts['offset_y']
 
@@ -162,24 +185,15 @@ class ScanParameter(CustomParameter):
         names = list([s.name for s in experiment.scans])
         if elastic_scan_name not in names:
             names.append(elastic_scan_name)
-        # bnames = ['None']
-        # bnames.extend(list([b.name for b in experiment.bg_models]))
-        # if bg_model_name not in bnames:
-        #     bnames.append(bg_model_name)
-
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':include})
-        c.append({'name': 'Elastic scan', 'type':'list', 'values':names,
-            'value':elastic_scan_name})
-        c.append({'name': 'Energy scan', 'type':'bool', 'value':energy_scan})
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
-        c.append({'name': 'Pixel-offset (x)', 'type':'int', 'value':offset_x})
-        c.append({'name': 'Pixel-offset (y)', 'type':'int', 'value':offset_y})
-        # c.append({'name': 'Background model', 'type':'list',
-        #     'values':bnames, 'value':bg_model_name})
+        c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
+        c.append({'name': 'Offset (y)', 'type':'int', 'value':offset_y})
+
         opts['children'] = c
         self.scan = scan
         super(self.__class__, self).__init__(**opts)
@@ -191,10 +205,8 @@ class ScanParameter(CustomParameter):
 
     def update(self, parameter):
         self.scan.active =  self.child('Include').value()
-        elastic_scan_name = self.child('Elastic scan').value()
-        experiment.change_elastic_scan(self.scan, elastic_scan_name)
-        self.scan.offset[0] = self.child('Pixel-offset (x)').value()
-        self.scan.offset[1] = self.child('Pixel-offset (y)').value()
+        self.scan.offset[0] = self.child('Offset (x)').value()
+        self.scan.offset[1] = self.child('Offset (y)').value()
 
 
         # Set background model
@@ -212,84 +224,114 @@ class ScanParameter(CustomParameter):
         super(self.__class__, self).update(parameter)
 
 
-    def update_lists(self):
-        d = dict()
-        d['Elastic scan'] = list([s.name for s in experiment.scans])
-        # l = ['None']
-        # l.extend(list([b.name for b in experiment.bg_models]))
-        # d['Background model'] = l
-        super(self.__class__, self).update_lists(d)
+    # def update_lists(self):
+    #     d = dict()
+    #     # d['Elastic scan'] = list([s.name for s in experiment.scans])
+    #     # l = ['None']
+    #     # l.extend(list([b.name for b in experiment.bg_models]))
+    #     # d['Background model'] = l
+    #     super(self.__class__, self).update_lists(d)
 
 registerParameterType('scan', ScanParameter, override=True)
 
 
-class BGModelParameter(CustomParameter):
+class CalibrationParameter(CustomParameter):
     def __init__(self, **opts):
-        self.model = BGModel()
-        self.model.name = opts['name']
-        experiment.add_bg_model(self.model)
+        print(opts)
+        self.calibration = Calibration()
+        self.calibration.name = opts['name']
+        experiment.add_calibration(self.calibration)
         names = ['None']
         names.extend(list([scan.name for scan in experiment.scans]))
-        if opts['reference'] not in names:
-            names.append(opts['reference'])
+        if opts['elastic_scan'] not in names:
+            names.append(opts['elastic_scan'])
+
+        analyzers = ['None']
+        if opts['main_analyzer'] not in analyzers:
+            analyzers.append(opts['main_analyzer'])
 
         c = []
-        #c.append({'name': 'Fit', 'type':'action'})
-        c.append({'name': 'Reference data', 'type':'list', 'values':names,
-            'value':opts['reference']})
-        c.append({'name': 'Window (start)', 'type':'float',
-            'value': opts['win_start'], 'siPrefix':False, 'suffix': 'eV'})
-        c.append({'name': 'Window (end)', 'type':'float',
-            'value': opts['win_end'], 'siPrefix':False, 'suffix': 'eV'})
-        c.append({'name': 'Vertical offset', 'type':'float',
-            'value':opts['vertical_offset']})
-        # c.append({'name': 'Fitting window', 'type':'str', 'value':'0,0'})
+        c.append({'name': 'Elastic scan', 'type':'list', 'values':names,
+            'value':opts['elastic_scan']})
+        c.append({'name': 'Main analyzer', 'type':'list', 'values':analyzers,
+            'value':opts['main_analyzer']})
+        c.append({'name': 'First frame', 'type':'int',
+            'value': opts['first_frame']})
+        c.append({'name': 'last frame', 'type':'int',
+            'value': opts['last_frame']})
         opts['children'] = c
         super(self.__class__, self).__init__(**opts)
-        #self.child('Fit').sigActivated.connect(self.fit_model)
+
+registerParameterType('calibration', CalibrationParameter, override=True)
 
 
-    def update(self, parameter):
-        self.fit_model()
-        CustomParameter.update(self, parameter)
-
-
-    def fit_model(self):
-        try:
-            ref_name = self.child('Reference data').value()
-            if ref_name is 'None':
-                raise Exception('No reference data selected.')
-
-            names = list([s.name for s in experiment.scans])
-            scan = experiment.scans[names.index(ref_name)]
-            elastic = experiment.elastic_scans[names.index(ref_name)]
-            self.model.set_data(scan, elastic)
-
-            offset = self.child('Vertical offset').value()
-            self.model.set_voffset(offset)
-            #
-            # window_str = self.child('Fitting window').value()
-            # pattern = r'([-+]?\d*\.\d+|[-+]?\d+)'
-            # numbers = re.findall(pattern, window_str)
-            # window = list([float(n) for n in numbers])
-
-            wstart = float(self.child('Window (start)').value())
-            wend = float(self.child('Window (end)').value())
-
-            self.model.set_window([wstart, wend])
-
-            self.model.fit(experiment.analyzers, method = 'pearson7')
-
-        except Exception as e:
-            Log.error('Model fitting failed: {}'.format(e))
-
-
-    def update_lists(self):
-        d = dict()
-        d['Reference data'] = list([s.name for s in experiment.scans])
-        super(self.__class__, self).update_lists(d)
-
-registerParameterType('bgModel', BGModelParameter, override=True)
+# class BGModelParameter(CustomParameter):
+#     def __init__(self, **opts):
+#         self.model = BGModel()
+#         self.model.name = opts['name']
+#         experiment.add_bg_model(self.model)
+#         names = ['None']
+#         names.extend(list([scan.name for scan in experiment.scans]))
+#         if opts['reference'] not in names:
+#             names.append(opts['reference'])
+#
+#         c = []
+#         #c.append({'name': 'Fit', 'type':'action'})
+#         c.append({'name': 'Reference data', 'type':'list', 'values':names,
+#             'value':opts['reference']})
+#         c.append({'name': 'Window (start)', 'type':'float',
+#             'value': opts['win_start'], 'siPrefix':False, 'suffix': 'eV'})
+#         c.append({'name': 'Window (end)', 'type':'float',
+#             'value': opts['win_end'], 'siPrefix':False, 'suffix': 'eV'})
+#         c.append({'name': 'Vertical offset', 'type':'float',
+#             'value':opts['vertical_offset']})
+#         # c.append({'name': 'Fitting window', 'type':'str', 'value':'0,0'})
+#         opts['children'] = c
+#         super(self.__class__, self).__init__(**opts)
+#         #self.child('Fit').sigActivated.connect(self.fit_model)
+#
+#
+#     def update(self, parameter):
+#         self.fit_model()
+#         CustomParameter.update(self, parameter)
+#
+#
+#     def fit_model(self):
+#         try:
+#             ref_name = self.child('Reference data').value()
+#             if ref_name is 'None':
+#                 raise Exception('No reference data selected.')
+#
+#             names = list([s.name for s in experiment.scans])
+#             scan = experiment.scans[names.index(ref_name)]
+#             elastic = experiment.elastic_scans[names.index(ref_name)]
+#             self.model.set_data(scan, elastic)
+#
+#             offset = self.child('Vertical offset').value()
+#             self.model.set_voffset(offset)
+#             #
+#             # window_str = self.child('Fitting window').value()
+#             # pattern = r'([-+]?\d*\.\d+|[-+]?\d+)'
+#             # numbers = re.findall(pattern, window_str)
+#             # window = list([float(n) for n in numbers])
+#
+#             wstart = float(self.child('Window (start)').value())
+#             wend = float(self.child('Window (end)').value())
+#
+#             self.model.set_window([wstart, wend])
+#
+#             self.model.fit(experiment.analyzers, method = 'pearson7')
+#
+#         except Exception as e:
+#             Log.error('Model fitting failed: {}'.format(e))
+#
+#
+#     def update_lists(self):
+#         d = dict()
+#         d['Reference data'] = list([s.name for s in experiment.scans])
+#         super(self.__class__, self).update_lists(d)
+#
+# registerParameterType('bgModel', BGModelParameter, override=True)
 
 
 class CustomGroupParameter(parameterTypes.GroupParameter):
@@ -300,7 +342,6 @@ class CustomGroupParameter(parameterTypes.GroupParameter):
     def __init__(self, **opts):
         opts['name'] = 'params'
         parameterTypes.GroupParameter.__init__(self, **opts)
-
 
 
     def addNew(self, typ=None, **opts):
@@ -336,15 +377,15 @@ class AnalyzerGroupParameter(CustomGroupParameter):
 
 
     def addNew(self, position = [128,128], size = [20,20], angle = 0.0,
-        include = True, e_offset = 0.0):
+        include = True, e_offset = 0.0, calibration = 'None'):
         opts = {}
-        opts['name'] = 'Analyzer {}'.format( len(experiment.analyzers))
+        opts['name'] = 'Analyzer {}'.format( len(experiment.analyzers) + 1)
         opts['gui'] = self.opts['gui']
         opts['position'] = position
         opts['size'] = size
         opts['angle'] = angle
         opts['include'] = include
-        # opts['pixel_wise'] = pixel_wise
+        opts['calibration'] = calibration
         opts['offset'] = e_offset
         super(self.__class__, self).addNew(**opts)
         # name=name, type=self.opts['child_type'], gui=self.opts['gui']
@@ -358,7 +399,7 @@ class ScanGroupParameter(CustomGroupParameter):
         super(self.__class__, self).__init__(**opts)
 
 
-    def addNew(self, typ=None, scan = None, elastic_scan = None,
+    def addNew(self, typ=None, scan = None, calibration = None,
         include = True, monitor_sum = True, offset_x = 0, offset_y = 0):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
@@ -390,23 +431,39 @@ class ScanGroupParameter(CustomGroupParameter):
 registerParameterType('scanGroup', ScanGroupParameter, override=True)
 
 
-class BGModelGroupParameter(CustomGroupParameter):
+class BGRoiGroupParameter(CustomGroupParameter):
     def __init__(self, **opts):
-        opts['addText'] = 'Add model'
+        opts['addText'] = 'Add background ROI'
         super(self.__class__, self).__init__(**opts)
 
-    def addNew(self, ref_data_name = 'None', win_start = 0.0, win_end = 0.0,
-        vertical_offset = 0.0):
+    def addNew(self, position = [128,128], size = [20,20],
+        include = True):
         opts = {}
-        opts['name'] = 'Model {}'.format(len(experiment.bg_models) + 1)
-        opts['reference'] = ref_data_name
-        opts['win_start'] = win_start
-        opts['win_end'] = win_end
-        opts['vertical_offset'] = vertical_offset
-
+        opts['name'] = 'Background ROI {}'.format(len(experiment.bg_rois) + 1)
+        opts['gui'] = self.opts['gui']
+        opts['position'] = position
+        opts['size'] = size
+        opts['include'] = include
         super(self.__class__, self).addNew(**opts)
 
 
+registerParameterType('backgroundRoiGroup', BGRoiGroupParameter, override=True)
 
 
-registerParameterType('bgModelGroup', BGModelGroupParameter, override=True)
+class CalibrationGroupParameter(CustomGroupParameter):
+    def __init__(self, **opts):
+        opts['addText'] = 'Add energy calibration'
+        super(self.__class__, self).__init__(**opts)
+
+    def addNew(self, scan_name = 'None', main_analyzer = None,
+        first_frame = 0, last_frame = 0):
+        opts = {}
+        opts['name'] = 'Calibration {}'.format(len(experiment.calibrations) + 1)
+        opts['elastic_scan'] = scan_name
+        opts['first_frame'] = first_frame
+        opts['last_frame'] = last_frame
+        opts['main_analyzer'] = main_analyzer
+        super(self.__class__, self).addNew(**opts)
+
+
+registerParameterType('calibrationGroup', CalibrationGroupParameter, override=True)

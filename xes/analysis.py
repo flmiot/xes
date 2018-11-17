@@ -28,7 +28,7 @@ class Experiment(object):
         self.scans                  = [] # List of all added scans
         self.analyzers              = [] # List of all added anaylzers
         self.bg_rois                = [] # List of all available background ROIs
-        self.e_calibrations         = [] # List of energy calibrations
+        self.calibrations         = [] # List of energy calibrations
 
 
 
@@ -122,6 +122,8 @@ class Experiment(object):
 
         self.analyzers.remove(analyzer)
 
+    def add_calibration(self, calibration):
+        self.calibrations.append(calibration)
 
     def add_background_roi(self, bg_roi):
         """Add an bg roi object to this experiment. Raise an exception if
@@ -587,6 +589,9 @@ class Analyzer(object):
         return float(f(0.5*np.max(cumsum)))
 
 
+class Calibration(object):
+    def __init__(self):
+        self.name = None
 
 class BGModel(object):
     def __init__(self):

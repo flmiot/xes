@@ -136,7 +136,7 @@ class Experiment(object):
         self.bg_rois.append(bg_roi)
 
 
-    def add_scan(self, scan, elastic_scan):
+    def add_scan(self, scan):
         """Add a scan object. Specify scan and corresponding elastic scan. Raise
         and exception if a scan with same name already exists inside this
         experiment.
@@ -148,7 +148,6 @@ class Experiment(object):
                     'because the name already exists.')
 
         self.scans.append(scan)
-        self.elastic_scans.append(elastic_scan)
 
 
     def remove_scan(self, scan_name):
@@ -386,293 +385,194 @@ class Scan(object):
 class Analyzer(object):
     def __init__(self, name):
         """
-        Create an analyzer object, which integrates over all pixels which
-        hold signal. Set pixels which hold signal before use. Make sure to use
-        the determine_central_energy method or specify central_energy manually
-        before use. Use get_signal_series or get_signal. Analyzers have a
+        Analyzers have a
         property called *active*, which can be used to include/exclude them when
         doing summed signal analysis.
         """
 
-        self.central_energies   = None
+        self.calibration        = None
         self.energy_offset      = 0.0
-        self.pixels             = None
+        self.roi                = None      # xmin,ymin,xmax,ymax e.g. [0,0,5,5]
         self.active             = True
-        self.pixel_wise         = False
         self.name               = name
 
 
-    def set_central_energy(self, energy):
-        """
-        Specifiy *energy* as either float value or array of central
-        energies for each pixel.
-        """
-
-        if isinstance(energy, float):
-            temp = np.empty(len(self.pixels))
-            temp[:] = energy
-            self.central_energies = temp
-
-        elif isinstance(energy, np.ndarray):
-            self.central_energies = energy
-
-
-
-    def set_pixels(self, pixels):
+    def set_roi(self, roi):
         """Specify *pixels* as list of tuples"""
-        self.pixels = pixels
 
-
-    def sum_pixels(self, images, bases, pixels):
-
-        if len(pixels) == 1:
-            x, y = pixels[0]
-            cb, ii = bases[0], images[:, x, y].copy()
-
+        if isinstance(roi, list):
+            self.roi = np.array(list)
+        elif isinstance(roi, np.ndarray):
+            self.roi = roi
         else:
-            min_energy = np.max([b[0] for b in bases])
-            max_energy = np.min([b[-1] for b in bases])
-            points = np.max([len(b) for b in bases])
+            fmt = "ROI has to be specified like [xmin, ymin, xmax, ymax], "\
+                "either as list or np.ndarray."
+            raise Exception(fmt)
 
-            cb = np.linspace(min_energy, max_energy, points)
-            ii = np.zeros(len(cb), dtype = np.float)
 
-            for base, pixel in zip(bases, pixels):
-                x, y = pixel
-                signal_series = images[:, x, y]
-                f = interp.interp1d(base, signal_series, kind = 'linear')
-                ii += f(cb)
-
-        return cb, ii
+    def set_calibration(self, calibration):
+        self.calibration = calibration.register(self)
 
 
     def get_signal(self, image):
-        """Get integrated signal for *image*."""
+        """
+        """
 
-        if self.pixels is None:
-            raise ValueError("Pixels with signal need to be set before use.")
+        if self.roi is None:
+            raise ValueError("ROI needs to be set before use.")
 
-        # signal = 0
-        # for pixel in self.pixels:
-        #     s = image[pixel]
-        #     signal += s if s > 0 else 0
+        x0,y0,x1,y1 = self.roi
+        ii = np.sum(image[y0:y1+1,x0:x1+1], axis = 0)
 
-        signal = np.sum(image[list(zip(*self.pixels))])
+        try:
+            ea = self.calibration.get_e_axis(self, signal, self.roi)
+        except:
+            ea = np.arange(len(signal))
+            fmt = "Energy axis could not be determined for analyzer {}."
+            Log.error(fmt.format(self.name))
 
-        return signal
+        return ea, ii
 
 
-    def get_signal_series(self, images, base = None, subtract_central_energy = True):
-        """Get series of signals, for list of images *images* and signal base
-        *base*. *base* can be None, it that case image indizes will be returned.
-        If *subtract_central_energy* is true (default), subtract central energy.
+    def get_signal_series(self, images):
+        """
+
         """
 
         start = time.time()
 
-        if self.central_energies is None and subtract_central_energy is True:
-            raise ValueError("Central energy needs to be set before use.")
-
-        pixel_bases = np.empty((len(self.pixels), len(base)))
-
-        for ind in range(len(self.pixels)):
-            if subtract_central_energy:
-                pixel_bases[ind] = base - self.central_energies[ind]
-            else:
-                pixel_bases[ind] = base
-            pixel_bases[ind] -= self.energy_offset
-
-
-
-
-        cb, ii = self.sum_pixels(images, pixel_bases, self.pixels)
-
+        ea = np.empty((len(images), len(np.arange(x0, x1+1))))
+        ii = np.empty((len(images), len(np.arange(x0, x1+1))))
+        for ind, image in enumerate(images):
+            e_axis, intensity = self.get_signal(image)
+            ea[ind] = e_axis
+            ii[ind] = intensity
 
         end = time.time()
         fmt = "Returned signal series [Took {:2f} s]".format(end-start)
         Log.debug(fmt)
 
-        return cb, ii
-
-
-    def determine_central_energy(self, images, base, method = "com",
-        pixel_wise = True):
-        """Given a list of images *images* and a signal base *base*, fit a
-        gaussian curve to the integrated-signal-over-base curve and
-        determine the maximum as central energy. *base* should be the energy at
-        which images where taken."""
-
-        start = time.time()
-
-        if method == "com":
-            # Center of mass
-
-            if pixel_wise:
-                central_energy = np.empty(len(self.pixels))
-                for ind, pixel in enumerate(self.pixels):
-                    cb, ii = self.sum_pixels(images, [base], [pixel])
-                    central_energy[ind] = self._get_center_of_mass(cb, ii)
-
-            else:
-                pixel_bases = np.empty((len(self.pixels), len(base)))
-                pixel_bases[:] = base
-                cb, ii = self.sum_pixels(images, pixel_bases, self.pixels)
-                cumsum = np.cumsum(ii)
-                f = interp.interp1d(cumsum, cb)
-                central_energy = self._get_center_of_mass(cb, ii)
-
-        else:
-            raise Exception(
-                "Unknow method for central energy determination requested.")
-
-        self.set_central_energy(central_energy)
-
-        end = time.time()
-        fmt = "Determined central energy: {} [Took {:2f} s]"
-        fmt = fmt.format(central_energy, end-start)
-        Log.debug(fmt)
-
-
-
-
-
-        # plt.plot(en, sig)
-        # plt.show()
-
-            # plt.plot(en, sig)
-            # plt.axvline(x=central_energy)
-            # plt.show()
-
-            #print('CE: {:6.2f}eV'.format(float(central_energy)))
-
-        # elif method == "fit":
-        #     # Gaussian fit
-        #     def gaussian(x, amp, mu, sigma):
-        #         return amp*np.exp(-(x-mu)**2 / sigma)
-        #
-        #     en_at_max = en[sig.index(np.max(sig))]
-        #     guess = [np.max(sig), en_at_max, 1e-4*en_at_max]
-        #     bv, cov = optim.curve_fit(gaussian, en, sig, p0 = guess)
-        #
-        #     # Resample fitted gaussian to 4 eV range around maximum
-        #     x_resamp = np.linspace(en_at_max-2, en_at_max+2, 1024)
-        #     y_resamp = gaussian(x_resamp, *bv)
-        #
-        #     # Assign maximum position of resampled fitted curve to central energy
-        #     central_energy = x_resamp[np.where(y_resamp == np.max(y_resamp))]
-        #
-        #     # plt.plot(x_resamp, y_resamp)
-        #     # plt.plot(en, sig)
-        #     # plt.axvline(x=central_energy)
-        #     # plt.show()
-        #
-        #     # Determine FWHM
-        #     fwhm = self._get_fwhm(x_resamp, y_resamp)
-        #
-        #     #print('CE: {:6.2f}eV | FWHM: {:6.2f}eV'.format(central_energy[0], fwhm))
-
-
-
-    def _get_fwhm(self, e, i):
-        energy_at_max = e[np.where(i == np.max(i))]
-        cl = np.logical_and(i > 0.5*np.max(i), e < energy_at_max)
-        left_limit = np.min(e[cl])
-        cr = np.logical_and(i > 0.5*np.max(i), e > energy_at_max)
-        right_limit = np.max(e[cr])
-
-        return right_limit - left_limit
-
-
-    def _get_center_of_mass(self, e, i):
-        cumsum = np.cumsum(i)
-        f = interp.interp1d(cumsum, e)
-        return float(f(0.5*np.max(cumsum)))
+        return ea, ii
 
 
 class Calibration(object):
     def __init__(self):
-        self.name = None
-
-class BGModel(object):
-    def __init__(self):
-        """No of sample rows, No of sample columns"""
-        self.name       = None
-        self.scan       = None
-        self.elastic    = None
-        self.fits       = []
-        self.window     = None
-        self.guess      = None
-        self.offset     = 0.0
-
-    def set_data(self, scan, elastic):
-        self.scan = scan
-        self.elastic = elastic
-
-    def set_voffset(self, offset):
-        self.offset = offset
-
-    def set_window(self, window):
-        self.window = window
-
-    def set_fitting_guess(self, guess):
-        self.guess = guess
-
-    def get_background(self, x, analyzer):
-        """
-        Get the fitted background function evaluated for all values in
-        array *e*. Will check if a fitting method was called before use.
-        """
-
-        try:
-            index = self.analyzers.index(analyzer)
-            return self.fits[index](x) - self.offset
-
-        except:
-            raise Exception('No fit available for this analyzer.')
+        self.name           = None
+        self.main_analyzer  = None
+        self.elastic_scan   = None
+        self.first_frame    = None
+        self.last_frame     = None
+        self.analyzers      = []
+        self.offsets        = []
 
 
-    def fit(self, analyzers, method = 'pearson7'):
-        """"""
-        if self.scan is None:
-            raise Exception('No reference data for this background model.')
+    def register(self, analyzer):
 
-        self.analyzers = analyzers
-        self.fits.clear()
+        if analyzer in self.analyzers:
+            raise Exception("Analyzer already registered for this calibration.")
 
-        # Set central energies for fit data
-        self.elastic.center_analyzers(analyzers)
-        e,i,_ = self.scan.get_energy_loss_spectrum(analyzers)
+        self.analyzers.append(analyzer)
+        self.offsets.append(0.0)
+        self.calibrate(analyzer)
+        return self
 
-        if method == 'pearson7':
-            for x,y in zip(e,i):
-                f = self.fit_pearson7(x,y, fit_window = self.window)
-                self.fits.append(f)
 
-            fmt = 'Model fitting (method = pearson7) sucessful.'
-            Log.debug(fmt)
+    def set_main_analyzer(self, analyzer):
+        self.main_analyzer = analyzer
+        self.calibrate(analyzer)
+
+
+    def get_e_axis(self, analyzer):
+        a = 1
+
+
+    def calibrate(self, analyzer):
+        if analyzer is self.main_analyzer:
+            a = 1
         else:
-            raise Exception('Unknown fitting method requested.')
+            a = 1
 
-
-    def fit_pearson7(self, x, y, fit_window = None):
-        """"""
-        if fit_window is None:
-            x0,x1 = 0,len(x)
-        else:
-            x0 = np.argmin(np.abs(x - fit_window[0]))
-            x1 = np.argmin(np.abs(x - fit_window[1]))
-
-        if self.guess is None:
-            index = np.where(y == np.max(y[x0:x1]))[0]
-            en_at_max = x[index]
-            self.guess = [np.max(y[x0:x1]), 60, 1.18, en_at_max]
-
-        def _pearson7(x, imax, w,m, x0):
-            return imax * w**(2*m) / (w**2+(2**(1/m)-1)*(x-x0)**2)**m
-
-        bv, _ = optim.curve_fit(_pearson7, x[x0:x1], y[x0:x1], p0=self.guess)
-
-        # plt.plot(_pearson7(x, *bv))
-        # plt.show()
-
-        return lambda e : _pearson7(e, *bv)
+#
+# class BGModel(object):
+#     def __init__(self):
+#         """No of sample rows, No of sample columns"""
+#         self.name       = None
+#         self.scan       = None
+#         self.elastic    = None
+#         self.fits       = []
+#         self.window     = None
+#         self.guess      = None
+#         self.offset     = 0.0
+#
+#     def set_data(self, scan, elastic):
+#         self.scan = scan
+#         self.elastic = elastic
+#
+#     def set_voffset(self, offset):
+#         self.offset = offset
+#
+#     def set_window(self, window):
+#         self.window = window
+#
+#     def set_fitting_guess(self, guess):
+#         self.guess = guess
+#
+#     def get_background(self, x, analyzer):
+#         """
+#         Get the fitted background function evaluated for all values in
+#         array *e*. Will check if a fitting method was called before use.
+#         """
+#
+#         try:
+#             index = self.analyzers.index(analyzer)
+#             return self.fits[index](x) - self.offset
+#
+#         except:
+#             raise Exception('No fit available for this analyzer.')
+#
+#
+#     def fit(self, analyzers, method = 'pearson7'):
+#         """"""
+#         if self.scan is None:
+#             raise Exception('No reference data for this background model.')
+#
+#         self.analyzers = analyzers
+#         self.fits.clear()
+#
+#         # Set central energies for fit data
+#         self.elastic.center_analyzers(analyzers)
+#         e,i,_ = self.scan.get_energy_loss_spectrum(analyzers)
+#
+#         if method == 'pearson7':
+#             for x,y in zip(e,i):
+#                 f = self.fit_pearson7(x,y, fit_window = self.window)
+#                 self.fits.append(f)
+#
+#             fmt = 'Model fitting (method = pearson7) sucessful.'
+#             Log.debug(fmt)
+#         else:
+#             raise Exception('Unknown fitting method requested.')
+#
+#
+#     def fit_pearson7(self, x, y, fit_window = None):
+#         """"""
+#         if fit_window is None:
+#             x0,x1 = 0,len(x)
+#         else:
+#             x0 = np.argmin(np.abs(x - fit_window[0]))
+#             x1 = np.argmin(np.abs(x - fit_window[1]))
+#
+#         if self.guess is None:
+#             index = np.where(y == np.max(y[x0:x1]))[0]
+#             en_at_max = x[index]
+#             self.guess = [np.max(y[x0:x1]), 60, 1.18, en_at_max]
+#
+#         def _pearson7(x, imax, w,m, x0):
+#             return imax * w**(2*m) / (w**2+(2**(1/m)-1)*(x-x0)**2)**m
+#
+#         bv, _ = optim.curve_fit(_pearson7, x[x0:x1], y[x0:x1], p0=self.guess)
+#
+#         # plt.plot(_pearson7(x, *bv))
+#         # plt.show()
+#
+#         return lambda e : _pearson7(e, *bv)

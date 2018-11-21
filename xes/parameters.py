@@ -77,7 +77,12 @@ class AnalyzerROI(pg.ROI):
 
         pg.ROI.__init__(self, pos=position, size=size) #, scaleSnap=True, translateSnap=True)
         self.addScaleHandle([1, 1], [0, 0])
-        # self.addScaleHandle([0, 0], [0, 0])
+        self.addScaleHandle([0, 0], [1, 1])
+        self.addScaleHandle([0, 1], [1, 0])
+        self.addScaleHandle([1, 0], [0, 1])
+
+        self.addScaleHandle([0.5, 1], [0.5, 0])
+        self.addScaleHandle([0.5, 0], [0.5, 1])
 
         # self.addRotateHandle([0, 0], [0.5, 0.5])
 
@@ -165,6 +170,7 @@ class ScanParameter(CustomParameter):
 
     ------------------  --------------------------------------------------
     Include             Include this object in analysis
+    Scanning type       Treat as scan (e.g. HERFD)
     Monitor: SUM        When displaying this object in monitor, sum all images
     Offset (x)          Shift all images in x-direction
     Offset (y)          Shift all images in y-direction
@@ -173,22 +179,21 @@ class ScanParameter(CustomParameter):
 
     def __init__(self, **opts):
         scan = opts['scan']
-        elastic_scan_name = opts['elastic_scan_name']
-        # bg_model_name = opts['bg_model_name']
 
         include = opts['include']
+        scanning_type = opts['scanning_type']
         monitor_sum = opts['monitor_sum']
         offset_x = opts['offset_x']
         offset_y = opts['offset_y']
 
-        experiment.add_scan(scan, elastic_scan_name)
+
+        experiment.add_scan(scan)
         names = list([s.name for s in experiment.scans])
-        if elastic_scan_name not in names:
-            names.append(elastic_scan_name)
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':include})
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
+        c.append({'name': 'Scanning type', 'type':'bool', 'value':scanning_type})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
         c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
@@ -399,8 +404,8 @@ class ScanGroupParameter(CustomGroupParameter):
         super(self.__class__, self).__init__(**opts)
 
 
-    def addNew(self, typ=None, scan = None, calibration = None,
-        include = True, monitor_sum = True, offset_x = 0, offset_y = 0):
+    def addNew(self, scan = None, include = True, scanning_type = False,
+        monitor_sum = True, offset_x = 0, offset_y = 0):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
         provided (i.e. scan = None).
@@ -413,19 +418,14 @@ class ScanGroupParameter(CustomGroupParameter):
         opts['scan'] = scan
         opts['name'] = scan.name
         opts['include'] = include
+        opts['scanning_type'] = scanning_type
         opts['monitor_sum'] = monitor_sum
         opts['offset_x'] = offset_x
         opts['offset_y'] = offset_y
 
-        if elastic_scan is not None:
-            opts['elastic_scan_name'] = elastic_scan
-        else:
-            opts['elastic_scan_name'] = scan.name
-
         # opts['bg_model_name'] = bg_model
 
         super(self.__class__, self).addNew(**opts)
-        self.update_lists()
 
 
 registerParameterType('scanGroup', ScanGroupParameter, override=True)

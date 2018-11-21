@@ -113,7 +113,7 @@ class Monitor(QtGui.QWidget):
             xi,yi = int(round(xi)),int(round(yi))
             pixels.append((yi,xi))
 
-        roi.analyzer.set_pixels(pixels)
+        # roi.analyzer.set_pixels(pixels)
         self.sigAnalyzerRoiChanged.emit()
 
 
@@ -262,7 +262,7 @@ class SpectralPlot(QtGui.QWidget):
             subtract_background = self.buttons['subtract_background'].isChecked()
             normalize = self.buttons['normalize'].isChecked()
 
-            e, i, b = experiment.get_energy_loss_spectrum(
+            e, i, b = experiment.get_spectrum(
                 single_analyzers, single_scans)
 
             # Plot current data:
@@ -565,8 +565,8 @@ class XSMainWindow(QtGui.QMainWindow):
             summed = parameter.child('Monitor: SUM').value()
             if parameter.scan.loaded:
                 self.monitor.display(parameter.scan, sum = summed)
-            param = self.background_tree.invisibleRootItem().child(0).param
-            param.update_lists()
+            # param = self.background_tree.invisibleRootItem().child(0).param
+            # param.update_lists()
 
         if isinstance(parameter, parameterTypes.SimpleParameter):
             if parameter.name() == 'Monitor: SUM':
@@ -622,7 +622,7 @@ class XSMainWindow(QtGui.QMainWindow):
 
         # self.statusBar.showMessage('BUSY... Please wait.', 30000)
 
-
+        Log.debug("Reading {} ...".format(path))
         # try to find logfile
         _, scan_name = os.path.split(path)
         log_file = scan_name + '.fio'
@@ -652,6 +652,7 @@ class XSMainWindow(QtGui.QMainWindow):
 
         # self.statusBar.showMessage("", 1)
 
+        Log.debug("Scan {} loaded.".format(s))
         return s
 
 

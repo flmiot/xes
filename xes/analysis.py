@@ -1,6 +1,7 @@
 import os
 import re
-import imageio
+# import imageio
+import tifffile as tiff
 import pdb
 import time
 import numpy as np
@@ -295,20 +296,24 @@ class Scan(object):
     def read_logfile(self):
         with open(self.log_file, 'r') as content_file:
             content = content_file.read()
-        pattern = r'(\d+\.\d+)\s'*8+r'.*'+r'(\d+\.\d+)\s'*3
+
+        print(content)
+        # pattern = r'(\d+\.\d+)\s'*8+r'.*'+r'(\d+\.\d+)\s'*3
+        pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
         matches = re.findall(pattern, content)
         enc_dcm_ener = [0]*len(matches)
         pin2 = [0]*len(matches)
         for ind, match in enumerate(matches):
-            _,_,_,e,_,p,_,_,_,_,_ = match
+            _,_,_,e,i01,tfy,trans,i02,_,_,_,_,_,_ = match
             enc_dcm_ener[ind] = float(e)
-            pin2[ind] = float(p)
+            i01 = float(i01)
+            i02 = float(i02)
+            tfy = float(tfy)
+            trans = float(trans)
 
         self.energies = enc_dcm_ener
-        self.monitor = pin2
+        self.monitor = i01
 
-        print(self.energies)
-        print(self.monitor)
         # plt.plot(pin2)
         # plt.show()
 
@@ -317,7 +322,7 @@ class Scan(object):
 
         self.images = np.empty(len(self.energies), dtype = '(195,487)i4')
         for ind, filename in enumerate(self.files):
-            self.images[ind] = imageio.imread(filename)
+            self.images[ind] = tiff.imread(filename)
 
             if callback is not None:
                 callback(ind + 1)

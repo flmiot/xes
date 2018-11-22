@@ -454,7 +454,7 @@ class XSMainWindow(QtGui.QMainWindow):
         docks['background'] = QtGui.QDockWidget("Background ROIs", self)
         docks['monitor'] = QtGui.QDockWidget('Monitor',self)
         docks['spectrum'] = QtGui.QDockWidget('Energy spectrum',self)
-        docks['calibrations'] = QtGui.QDockWidget('Energy calibrations',self)
+        # docks['calibrations'] = QtGui.QDockWidget('Energy calibrations',self)
 
 
         self.plot = SpectralPlot()
@@ -469,7 +469,7 @@ class XSMainWindow(QtGui.QMainWindow):
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['scans'])
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['analyzer'])
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['background'])
-        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['calibrations'])
+        # self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['calibrations'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['monitor'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['spectrum'])
 
@@ -515,15 +515,15 @@ class XSMainWindow(QtGui.QMainWindow):
         self.addAction(self.actionAddAnalyzer)
         self.actionAddAnalyzer.triggered.connect(par.addNew)
 
-        self.calibration_tree = ParameterTree(showHeader = False)
-        self.calibration_tree.setObjectName('CalibrationTree')
-        par = Parameter.create(type='calibrationGroup', child_type = 'calibration', gui=self)
-        self.calibration_tree.setParameters(par, showTop=False)
-        par.sigUpdate.connect(self.calibration_tree_handler)
-        self.actionAddCalibration = QtGui.QAction(('Add new energy calibration'), self)
-        self.actionAddCalibration.setShortcut(QtGui.QKeySequence("Ctrl+C"))
-        self.addAction(self.actionAddCalibration)
-        self.actionAddCalibration.triggered.connect(par.addNew)
+        # self.calibration_tree = ParameterTree(showHeader = False)
+        # self.calibration_tree.setObjectName('CalibrationTree')
+        # par = Parameter.create(type='calibrationGroup', child_type = 'calibration', gui=self)
+        # self.calibration_tree.setParameters(par, showTop=False)
+        # par.sigUpdate.connect(self.calibration_tree_handler)
+        # self.actionAddCalibration = QtGui.QAction(('Add new energy calibration'), self)
+        # self.actionAddCalibration.setShortcut(QtGui.QKeySequence("Ctrl+C"))
+        # self.addAction(self.actionAddCalibration)
+        # self.actionAddCalibration.triggered.connect(par.addNew)
 
         #
         # add_scan = QtGui.QAction("&Add scan", self)
@@ -539,7 +539,7 @@ class XSMainWindow(QtGui.QMainWindow):
         # docks['background'].widget().setMinimumSize(QtCore.QSize(400,300))
         docks['analyzer'].setWidget(self.analyzer_tree)
         # docks['analyzer'].widget().setMinimumSize(QtCore.QSize(400,300))
-        docks['calibrations'].setWidget(self.calibration_tree)
+        # docks['calibrations'].setWidget(self.calibration_tree)
 
         # # Final touches
         fmt = 'XES analysis (GUI) - XES v{}'.format(xes.__version__)

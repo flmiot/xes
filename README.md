@@ -1,4 +1,4 @@
-# X-ray Emission data analysis tool (Win / Linux / macOS)
+# X-ray Emission & HERFD data analysis tool (Win / Linux / macOS)
 
 ![alt text](https://github.com/flmiot/xes/blob/master/doc/screenshot.PNG)
 

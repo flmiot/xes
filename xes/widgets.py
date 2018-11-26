@@ -105,23 +105,39 @@ class Monitor(QtGui.QWidget):
         if coords is None:
             return
 
-
-
+        # get bounding box
         x,y = coords[0].flatten(), coords[1].flatten()
-        pixels = []
-        for xi,yi in zip(x,y):
-            xi,yi = int(round(xi)),int(round(yi))
-            pixels.append((yi,xi))
+        x0, x1 = np.min(x), np.max(x)
+        y0, y1 = np.min(y), np.max(y)
+        bbox = list([int(i) for i in [x0,y0,x1,y1]])
 
-        # roi.analyzer.set_pixels(pixels)
+
+
+
+        # pixels = []
+        # for xi,yi in zip(x,y):
+        #     xi,yi = int(round(xi)),int(round(yi))
+        #     pixels.append((yi,xi))
+
+        roi.analyzer.set_roi(bbox)
         self.sigAnalyzerRoiChanged.emit()
 
 
     def _update_cursor_position(self, event):
         pos = event[0]
-        x = self.image_view.getView().mapSceneToView(pos).x()
-        y = self.image_view.getView().mapSceneToView(pos).y()
-        fmt = '<font color="white">x: {:.2f} | y: {:.2f}</font>'.format(x,y)
+        x = int(self.image_view.getView().mapSceneToView(pos).x())
+        y = int(self.image_view.getView().mapSceneToView(pos).y())
+
+        try:
+            if len(self.image_view.image.shape) == 3:
+                z = self.image_view.currentIndex
+                i = self.image_view.image[z,x,y]
+            else:
+                i = self.image_view.image[x,y]
+        except Exception as e:
+            i = 0
+        fmt = '<font color="white">x: {:6d} | y: {:6d} | intensity: {:6.0f}</font>'
+        fmt = fmt.format(x,y, i)
         self.label.setText(fmt)
 
 
@@ -174,13 +190,24 @@ class SpectralPlot(QtGui.QWidget):
         buttons['refresh toggle'] = b
 
         b = QtGui.QToolButton(self)
+        b.setIcon(QtGui.QIcon('icons/scanning_type.png'))
+        b.setCheckable(True)
+        b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
+        b.setToolTip("Plot scanning type spectra (HERFD)")
+        b.toggled.connect(self.switch_to_scanning_type)
+        tb.addWidget(b)
+        buttons['scanning_type'] = b
+
+        b = QtGui.QToolButton(self)
         b.setIcon(QtGui.QIcon('icons/single_analyzers.png'))
         b.setCheckable(True)
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Enable to plot seperate curves for analyzer signals")
         b.toggled.connect(self.update_plot_manually)
+        b.setVisible(False)
         tb.addWidget(b)
         buttons['single_analyzers'] = b
+
 
         b = QtGui.QToolButton(self)
         b.setIcon(QtGui.QIcon('icons/single_scans.png'))
@@ -188,16 +215,20 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Enable to plot seperate curves for individual scans")
         b.toggled.connect(self.update_plot_manually)
+        b.setVisible(False)
         tb.addWidget(b)
         buttons['single_scans'] = b
+
 
         b = QtGui.QToolButton(self)
         b.setIcon(QtGui.QIcon('icons/persistence-mode.png'))
         b.setCheckable(True)
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Enable persistence mode")
+        b.setVisible(False)
         tb.addWidget(b)
         buttons['ghost'] = b
+
 
         b = QtGui.QToolButton(self)
         b.setIcon(QtGui.QIcon('icons/subtract_background_model.png'))
@@ -205,8 +236,10 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Subtract background models")
         b.toggled.connect(self.update_plot_manually)
+        b.setVisible(False)
         tb.addWidget(b)
         buttons['subtract_background'] = b
+
 
         b = QtGui.QToolButton(self)
         b.setIcon(QtGui.QIcon('icons/normalize.png'))
@@ -214,8 +247,10 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Normalize the area under each curve to 1000")
         b.toggled.connect(self.update_plot_manually)
+        b.setVisible(False)
         tb.addWidget(b)
         buttons['normalize'] = b
+
 
         self.label = QtGui.QLabel()
         self.label.setText('<font color="white">Cursor position</font>')
@@ -245,6 +280,9 @@ class SpectralPlot(QtGui.QWidget):
         #layout.addWidget(controlWidget)
         self.buttons = buttons
 
+    def switch_to_scanning_type(self):
+        self.plot.plotItem.enableAutoRange()
+        self.update_plot_manually()
 
     def update_plot(self):
         if not self.buttons['refresh toggle'].isChecked():
@@ -254,126 +292,155 @@ class SpectralPlot(QtGui.QWidget):
 
 
     def update_plot_manually(self):
-        try:
-            self.clear_plot()
+        # try:
+        self.clear_plot()
 
-            single_scans = self.buttons['single_scans'].isChecked()
-            single_analyzers = self.buttons['single_analyzers'].isChecked()
-            subtract_background = self.buttons['subtract_background'].isChecked()
-            normalize = self.buttons['normalize'].isChecked()
+        single_scans = self.buttons['single_scans'].isChecked()
+        single_analyzers = self.buttons['single_analyzers'].isChecked()
+        subtract_background = self.buttons['subtract_background'].isChecked()
+        normalize = self.buttons['normalize'].isChecked()
+        scanning_type = self.buttons['scanning_type'].isChecked()
+        analysis_result = experiment.get_spectrum()
 
-            e, i, b = experiment.get_spectrum(
-                single_analyzers, single_scans)
-
-            # Plot current data:
-            self._plot(e,i, b, single_analyzers, single_scans,
-                subtract_background, normalize)
+        # Plot current data:
+        self._plot(analysis_result, single_analyzers, single_scans,
+            scanning_type, subtract_background, normalize)
 
 
-            # Plot ghosts
-            if self.buttons['ghost'].isChecked():
-                for ind, g in enumerate(self.ghosts):
-                    if ind > 45:
-                        break
-                    self._plot(*g)
-                self.ghosts.append([e,i, b, single_analyzers, single_scans])
+        # # Plot ghosts
+        # if self.buttons['ghost'].isChecked():
+        #     for ind, g in enumerate(self.ghosts):
+        #         if ind > 45:
+        #             break
+        #         self._plot(*g)
+        #     self.ghosts.append([e,i, b, single_analyzers, single_scans])
+        # else:
+        #     self.ghosts = []
+
+        # except Exception as e:
+        #     fmt = 'Plot update failed: {}'.format(e)
+        #     Log.error(fmt)
+
+
+    def _plot(self, analysis_result, single_analyzers = True, single_scans = True,
+        scanning_type = False, subtract_background = True, normalize = False):
+
+        e, i, b, l = analysis_result.get_curves(
+            single_analyzers, single_scans, scanning_type)
+
+
+
+
+        for energies, intensities, backgrounds, labels in zip(e,i,b,l):
+
+            # plot analyzers or sum of analyzers
+            if scanning_type:
+                intensity = []
+                for intens in intensities:
+                    intensity.append(np.sum(intens))
+
+                energy = labels
+
+
+                self.plot.plot(energy,intensity)
             else:
-                self.ghosts.clear()
-
-        except Exception as e:
-            fmt = 'Plot update failed: {}'.format(e)
-            Log.error(fmt)
+                intensity = np.sum(intensities, axis = 0)
+                energy = energies[0]
+                self.plot.plot(energy,intensity)
 
 
-    def _plot(self, energies, intensities, backgrounds, single_analyzers = True,
-        single_scans = True, subtract_background = True, normalize = False):
-
-        sh = [len(energies.dtype.names),len(energies)]
-        if not single_scans:
-            sh = reversed(sh)
-        colors = self._get_colors(*sh)
-        all_analyzer_names = [a.name for a in experiment.analyzers]
-        all_analyzer_names = list(all_analyzer_names)
-        act_analyzer_names = [a.name for a in experiment.analyzers if a.active]
-        act_analyzer_names = list(act_analyzer_names)
-
-        # Plot analyzers:
-        z = zip(range(len(energies)), energies, intensities, backgrounds)
-        for ind0, energy, intensity, background in z:
-            name = act_analyzer_names[ind0]
-            label0 = name if single_analyzers else "All"
-
-            # Plot scans
-            if single_scans:
-                for ind1, scan_name in enumerate(energy.dtype.names):
-                    col = colors[ind1, ind0]
-
-                    if subtract_background:
-                        # Plot data - background
-                        label = label0 + ' ({})*'.format(scan_name)
-                        pe, pi = energy[scan_name], intensity[scan_name]
-                        pb = background[scan_name]
-
-                        sub = pi-pb
-                        if normalize:
-                            sub, _ = self._normalize_curve(sub)
-
-                        self.plot.plot(pe,sub, pen=QtGui.QColor(*col), name=label)
-
-                    else:
-                        # Plot data
-                        label = label0 + ' ({})'.format(scan_name)
-                        pe, pi = energy[scan_name], intensity[scan_name]
-
-                        if normalize:
-                            pi, fac = self._normalize_curve(pi)
-                        else:
-                            fac = 1.0
-
-                        self.plot.plot(pe,pi, pen=QtGui.QColor(*col), name=label)
-
-                        # Plot background if not all zeros
-                        pb = background[scan_name]
-                        if np.any(pb):
-                            pen = self._get_background_pen(col)
-                            self.plot.plot(pe,pb * fac, pen=pen)
 
 
-            else:
-                color_index = all_analyzer_names.index(name)
-                col = colors[color_index,0]
 
-                scan_name = energy.dtype.names[0]
 
-                if subtract_background:
-                    label0 += ' ({})*'.format(scan_name)
-                    pe, pi = energy[scan_name], intensity[scan_name]
-                    pb = background[scan_name]
 
-                    sub = pi-pb
 
-                    if normalize:
-                        sub, _ = self._normalize_curve(sub)
-
-                    self.plot.plot(pe, sub, pen=QtGui.QColor(*col), name=label0)
-                else:
-                    label0 += ' ({})'.format(scan_name)
-
-                    # Plot data
-                    pe, pi = energy[scan_name], intensity[scan_name]
-
-                    if normalize:
-                        pi, fac = self._normalize_curve(pi)
-                    else:
-                        fac = 1.0
-
-                    self.plot.plot(pe,pi, pen=QtGui.QColor(*col), name=label0)
-
-                    # Plot background if not all zero
-                    pb = background[scan_name]
-                    if np.any(pb):
-                        pen = self._get_background_pen(col)
-                        self.plot.plot(pe,pb * fac, pen=pen)
+        # sh = [len(energies.dtype.names),len(energies)]
+        # if not single_scans:
+        #     sh = reversed(sh)
+        # colors = self._get_colors(*sh)
+        # all_analyzer_names = [a.name for a in experiment.analyzers]
+        # all_analyzer_names = list(all_analyzer_names)
+        # act_analyzer_names = [a.name for a in experiment.analyzers if a.active]
+        # act_analyzer_names = list(act_analyzer_names)
+        #
+        # # Plot analyzers:
+        # z = zip(range(len(energies)), energies, intensities, backgrounds)
+        # for ind0, energy, intensity, background in z:
+        #     name = act_analyzer_names[ind0]
+        #     label0 = name if single_analyzers else "All"
+        #
+        #     # Plot scans
+        #     if single_scans:
+        #         for ind1, scan_name in enumerate(energy.dtype.names):
+        #             col = colors[ind1, ind0]
+        #
+        #             if subtract_background:
+        #                 # Plot data - background
+        #                 label = label0 + ' ({})*'.format(scan_name)
+        #                 pe, pi = energy[scan_name], intensity[scan_name]
+        #                 pb = background[scan_name]
+        #
+        #                 sub = pi-pb
+        #                 if normalize:
+        #                     sub, _ = self._normalize_curve(sub)
+        #
+        #                 self.plot.plot(pe,sub, pen=QtGui.QColor(*col), name=label)
+        #
+        #             else:
+        #                 # Plot data
+        #                 label = label0 + ' ({})'.format(scan_name)
+        #                 pe, pi = energy[scan_name], intensity[scan_name]
+        #
+        #                 if normalize:
+        #                     pi, fac = self._normalize_curve(pi)
+        #                 else:
+        #                     fac = 1.0
+        #
+        #                 self.plot.plot(pe,pi, pen=QtGui.QColor(*col), name=label)
+        #
+        #                 # Plot background if not all zeros
+        #                 pb = background[scan_name]
+        #                 if np.any(pb):
+        #                     pen = self._get_background_pen(col)
+        #                     self.plot.plot(pe,pb * fac, pen=pen)
+        #
+        #
+        #     else:
+        #         color_index = all_analyzer_names.index(name)
+        #         col = colors[color_index,0]
+        #
+        #         scan_name = energy.dtype.names[0]
+        #
+        #         if subtract_background:
+        #             label0 += ' ({})*'.format(scan_name)
+        #             pe, pi = energy[scan_name], intensity[scan_name]
+        #             pb = background[scan_name]
+        #
+        #             sub = pi-pb
+        #
+        #             if normalize:
+        #                 sub, _ = self._normalize_curve(sub)
+        #
+        #             self.plot.plot(pe, sub, pen=QtGui.QColor(*col), name=label0)
+        #         else:
+        #             label0 += ' ({})'.format(scan_name)
+        #
+        #             # Plot data
+        #             pe, pi = energy[scan_name], intensity[scan_name]
+        #
+        #             if normalize:
+        #                 pi, fac = self._normalize_curve(pi)
+        #             else:
+        #                 fac = 1.0
+        #
+        #             self.plot.plot(pe,pi, pen=QtGui.QColor(*col), name=label0)
+        #
+        #             # Plot background if not all zero
+        #             pb = background[scan_name]
+        #             if np.any(pb):
+        #                 pen = self._get_background_pen(col)
+        #                 self.plot.plot(pe,pb * fac, pen=pen)
 
 
     def _get_colors(self, no_of_scans, no_of_analyzers):
@@ -397,7 +464,7 @@ class SpectralPlot(QtGui.QWidget):
         pos = event[0]
         x = self.plot.getPlotItem().vb.mapSceneToView(pos).x()
         y = self.plot.getPlotItem().vb.mapSceneToView(pos).y()
-        fmt = '<font color="white">x: {:.2f} | y: {:.2f}</font>'.format(x,y)
+        fmt = '<font color="white">x: {:.7f} | y: {:.7f}</font>'.format(x,y)
         self.label.setText(fmt)
 
 
@@ -451,10 +518,10 @@ class XSMainWindow(QtGui.QMainWindow):
 
         docks['scans'] = QtGui.QDockWidget("Scan objects", self)
         docks['analyzer'] = QtGui.QDockWidget("Analyzers", self)
-        docks['background'] = QtGui.QDockWidget("Background ROIs", self)
+        # docks['background'] = QtGui.QDockWidget("Background ROIs", self)
         docks['monitor'] = QtGui.QDockWidget('Monitor',self)
         docks['spectrum'] = QtGui.QDockWidget('Energy spectrum',self)
-        # docks['calibrations'] = QtGui.QDockWidget('Energy calibrations',self)
+        # docks['herfd'] = QtGui.QDockWidget('HERFD',self)
 
 
         self.plot = SpectralPlot()
@@ -468,10 +535,10 @@ class XSMainWindow(QtGui.QMainWindow):
 
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['scans'])
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['analyzer'])
-        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['background'])
-        # self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['calibrations'])
+        # self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['background'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['monitor'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['spectrum'])
+        # self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['herfd'])
 
         self.scan_tree = ParameterTree(showHeader = False)
         self.scan_tree.setObjectName('ScanTree')
@@ -484,15 +551,15 @@ class XSMainWindow(QtGui.QMainWindow):
         self.actionAddScan.triggered.connect(par.addNew)
         self.par = par
 
-        self.bgroi_tree = ParameterTree(showHeader = False)
-        self.bgroi_tree.setObjectName('BackgroundRoiTree')
-        par = Parameter.create(type='backgroundRoiGroup', child_type = 'backgroundRoi', gui=self)
-        self.bgroi_tree.setParameters(par, showTop=False)
-        par.sigUpdate.connect(self.bgroi_tree_handler)
-        self.actionAddBgRoi = QtGui.QAction(('Add new background ROI'), self)
-        self.actionAddBgRoi.setShortcut(QtGui.QKeySequence("Ctrl+B"))
-        self.addAction(self.actionAddBgRoi)
-        self.actionAddBgRoi.triggered.connect(par.addNew)
+        # self.bgroi_tree = ParameterTree(showHeader = False)
+        # self.bgroi_tree.setObjectName('BackgroundRoiTree')
+        # par = Parameter.create(type='backgroundRoiGroup', child_type = 'backgroundRoi', gui=self)
+        # self.bgroi_tree.setParameters(par, showTop=False)
+        # par.sigUpdate.connect(self.bgroi_tree_handler)
+        # self.actionAddBgRoi = QtGui.QAction(('Add new background ROI'), self)
+        # self.actionAddBgRoi.setShortcut(QtGui.QKeySequence("Ctrl+B"))
+        # self.addAction(self.actionAddBgRoi)
+        # self.actionAddBgRoi.triggered.connect(par.addNew)
 
 
         # self.background_tree = ParameterTree(showHeader = False)
@@ -535,11 +602,14 @@ class XSMainWindow(QtGui.QMainWindow):
 
         docks['scans'].setWidget(self.scan_tree)
         # docks['scans'].widget().setMinimumSize(QtCore.QSize(400,300))
-        docks['background'].setWidget(self.bgroi_tree)
+        # docks['background'].setWidget(self.bgroi_tree)
         # docks['background'].widget().setMinimumSize(QtCore.QSize(400,300))
         docks['analyzer'].setWidget(self.analyzer_tree)
         # docks['analyzer'].widget().setMinimumSize(QtCore.QSize(400,300))
         # docks['calibrations'].setWidget(self.calibration_tree)
+        # self.hplot = SpectralPlot()
+        # docks['herfd'].setWidget(self.hplot)
+        # docks['herfd'].widget().setMinimumSize(QtCore.QSize(400,300))
 
         # # Final touches
         fmt = 'XES analysis (GUI) - XES v{}'.format(xes.__version__)
@@ -632,6 +702,7 @@ class XSMainWindow(QtGui.QMainWindow):
             test_path = os.path.join(os.path.split(path)[0], log_file)
             if not os.path.isfile(test_path):
                 return
+
 
         s = Scan(log_file = test_path, imgage_files = files)
 

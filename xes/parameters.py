@@ -110,23 +110,26 @@ class AnalyzerParameter(CustomParameter):
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
         names = list([c.name for c in experiment.calibrations])
-        c.append({'name': 'Energy calibration', 'type':'list', 'values':names,
-            'value':opts['calibration']})
-        c.append({'name': 'Energy offset', 'type':'float', 'value':opts['offset'],
-            'step':0.1, 'siPrefix':False, 'suffix': 'eV'})
+        # c.append({'name': 'Energy calibration', 'type':'list', 'values':names,
+        #     'value':opts['calibration']})
+        # c.append({'name': 'Energy offset', 'type':'float', 'value':opts['offset'],
+        #     'step':0.1, 'siPrefix':False, 'suffix': 'eV'})
+        # c.append({'name': 'Offset', 'type':'int', 'value':opts['offset'],
+        #     'step':1})
         opts['children'] = c
         super(self.__class__, self).__init__(**opts)
 
 
     def update(self, parameter):
         self.roi.analyzer.active = self.child('Include').value()
-        self.roi.analyzer.energy_offset = self.child('Energy offset').value()
+        # self.roi.analyzer.energy_offset = self.child('Offset').value()
         # self.roi.analyzer.pixel_wise = self.child('Pixel-wise').value()
         super(self.__class__, self).update(parameter)
 
+
     def update_lists(self):
         d = dict()
-        d['Energy calibration'] = list([c.name for c in experiment.calibrations])
+        # d['Energy calibration'] = list([c.name for c in experiment.calibrations])
         super(self.__class__, self).update_lists(d)
 
 registerParameterType('analyzer', AnalyzerParameter, override=True)
@@ -193,11 +196,11 @@ class ScanParameter(CustomParameter):
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':include})
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
-        c.append({'name': 'Scanning type', 'type':'bool', 'value':scanning_type})
+        # c.append({'name': 'Scanning type', 'type':'bool', 'value':scanning_type})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
-        c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
-        c.append({'name': 'Offset (y)', 'type':'int', 'value':offset_y})
+        # c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
+        # c.append({'name': 'Offset (y)', 'type':'int', 'value':offset_y})
 
         opts['children'] = c
         self.scan = scan
@@ -210,8 +213,8 @@ class ScanParameter(CustomParameter):
 
     def update(self, parameter):
         self.scan.active =  self.child('Include').value()
-        self.scan.offset[0] = self.child('Offset (x)').value()
-        self.scan.offset[1] = self.child('Offset (y)').value()
+        # self.scan.offset[0] = self.child('Offset (x)').value()
+        # self.scan.offset[1] = self.child('Offset (y)').value()
 
 
         # Set background model
@@ -353,6 +356,11 @@ class CustomGroupParameter(parameterTypes.GroupParameter):
         try:
             opts['type'] = self.opts['child_type']
             par = Parameter.create(**opts)
+
+            for child in self.children():
+                if child.name() == par.name():
+                    child.remove()
+
             self.addChild(par)
             self.sigUpdate.emit(par)
             self.connect_children()
@@ -411,8 +419,12 @@ class ScanGroupParameter(CustomGroupParameter):
         provided (i.e. scan = None).
         """
 
+
         if scan is None:
             scan = self.opts['gui'].action_read_scan()
+
+        if scan is None:
+            return
 
         opts = {}
         opts['scan'] = scan

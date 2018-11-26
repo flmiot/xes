@@ -16,6 +16,125 @@ import matplotlib.pyplot as plt # For debugging
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+
+class AnalysisResult(object):
+    def __init__(self):
+        self.energies    = []  # list of 3d arrays
+        self.intensities = []  # list of 3d arrays
+        self.background  = []  # list of 3d arrays
+        self.labels      = []  # list of names for each 3d array
+
+
+    def add_data(self, energy, intensity, background, label):
+        self.energies.append(energy)
+        self.intensities.append(intensity)
+        self.background.append(background)
+        self.labels.append(label)
+
+
+    def get_curves(self, single_analyzers, single_scans, scanning_type = False):
+
+        e, i, b = self.energies, self.intensities, self.background
+        l = self.labels
+
+
+        if not single_analyzers:
+            e, i, b, l = self.sum_analyzers(e, i, b, l)
+        # if not single_scans:
+        #     e, i, b, l = self.sum_scans(e, i, b, l)
+
+        return e, i, b, l
+
+
+    def sum_analyzers(self, energies, intensities, backgrounds, labels):
+        """
+        Interpolate spectra for multiple analyzers linearly and sum them
+        scan-wise.
+        """
+
+        energies_summed = []
+        intensities_summed = []
+        backgrounds_summed = []
+
+        # Iterate scans
+        l = []
+        for ind, label in enumerate(labels):
+
+
+
+            energy = energies[ind]
+            intensity = intensities[ind]
+            background = backgrounds[ind]
+
+            energy_summed = []
+            intensity_summed = []
+            background_summed = []
+
+            # Iterate images
+            for ei, ii, bi in zip(energy, intensity, background):
+
+                min_energy = np.max(list(e[0] for e in ei))
+                max_energy = np.min(list(e[-1] for e in ei))
+                points = np.max(list([len(e) for e in ei]))
+                ir = np.zeros(points, dtype = np.float)
+                ce = np.linspace(min_energy, max_energy, points)
+
+                a = len(ei)
+                z = zip(range(a), ei, ii)
+                for ind,e,i in z:
+                    fi = interp.interp1d(e, i)
+                    ir += fi(ce)
+
+                energy_summed.append(ce)
+                intensity_summed.append(ir)
+                background_summed.append(points) # TODO: Wrong!
+
+            energies_summed.append(energy_summed)
+            intensities_summed.append(intensity_summed)
+            backgrounds_summed.append(backgrounds_summed)
+
+        return  energies_summed, intensities_summed, backgrounds_summed, labels
+
+
+    # def sum_scans(self, energies, intensities, background, labels):
+    #     """
+    #     Interpolate spectra for multiple scans linearly and sum them
+    #     analyzer-wise.
+    #     """
+    #
+    #     scan_names = energies.dtype.names
+    #
+    #     # Allocate memory
+    #     points = np.max([len(energies[name][0]) for name in scan_names])
+    #     types = [('Summed scans', '{}f4'.format(points))]
+    #
+    #     ce = np.empty(len(energies), dtype=types)
+    #     ii = np.zeros(len(energies), dtype=types)
+    #     bi = np.zeros(len(energies), dtype=types)
+    #
+    #     a = len(energies)
+    #     z = zip(range(a), energies, intensities, backgrounds)
+    #     for ind, energy, intensity, background in z:
+    #         min_energy = np.max([energy[name][0] for name in scan_names])
+    #         max_energy = np.min([energy[name][-1] for name in scanning_typescan_names])
+    #
+    #         ce['Summed scans'][ind] = \
+    #              np.linspace(min_energy, max_energy, points)
+    #
+    #         for name in scan_names:
+    #             e = energy[name]
+    #             i = intensity[name]
+    #             fi = interp.interp1d(e, i)
+    #             ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
+    #
+    #             if backgrounds is not None:
+    #                 b = background[name]
+    #                 fb = interp.interp1d(e,b)
+    #                 bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
+    #
+    #     return ce, ii, bi, l
+
+
 class Experiment(object):
     """An Experiment holds a set of analyzers for a number of scans. For each
     scan, summed spectra can be obtained by calling the *get_spectrum()* method.
@@ -33,7 +152,7 @@ class Experiment(object):
 
 
 
-    def get_spectrum(self, single_analyzers = True, single_scans = True):
+    def get_spectrum(self):
 
         """
         Get an energy spectrum. This method will return three arrays, one with
@@ -58,22 +177,22 @@ class Experiment(object):
         types = list(
             [(s.name,'{}f4'.format(len(s.images))) for s in active_scans])
 
-        e = np.empty(len(active_analyzers), types)
-        i = np.empty(len(active_analyzers), types)
-        b = np.empty(len(active_analyzers), types)
+        # e = []#np.empty(len(active_analyzers), types)
+        # i = []#np.empty(len(active_analyzers), types)
+        # b = []#np.empty(len(active_analyzers), types)
+
+        result = AnalysisResult()
 
         for scan in active_scans:
 
             index = self.scans.index(scan)
 
             # Center analyzers with the corresponding elastic scan
-            elastic_scan = self.elastic_scans[index]
-            elastic_scan.center_analyzers(active_analyzers)
+            # elastic_scan = self.elastic_scans[index]
+            # elastic_scan.center_analyzers(active_analyzers)
 
-            ener, inte, back = scan.get_energy_loss_spectrum(active_analyzers)
-            e[scan.name] = ener
-            i[scan.name] = inte
-            b[scan.name] = back
+            ener, inte, back = scan.get_energy_spectrum(active_analyzers)
+            result.add_data(ener, inte, back, scan.energies)
 
             # plt.plot(back[0])
             # plt.show()
@@ -83,26 +202,30 @@ class Experiment(object):
         Log.debug(fmt)
         start = end
 
-        if not single_analyzers:
-            try:
-                e_summed, i_summed, b_summed = self.sum_analyzers(e, i, b)
-                e, i, b = e_summed, i_summed, b_summed
-            except Exception as exception:
-                Log.error('Summing of analyzers failed: {}'.format(exception))
+        # e = np.array(e)
+        # i = np.array(i)
+        # b = np.array(b)
 
-        if not single_scans:
-            try:
-                e_summed, i_summed, b_summed = self.sum_scans(e, i, b)
-                e, i, b = e_summed, i_summed, b_summed
-            except Exception as exception:
-                Log.error('Summing of scans failed: {}'.format(exception))
+        # if not single_analyzers:
+        #     try:
+        #         e_summed, i_summed, b_summed = self.sum_analyzers(e, i, b)
+        #         e, i, b = e_summed, i_summed, b_summed
+        #     except Exception as exception:
+        #         Log.error('Summing of analyzers failed: {}'.format(exception))
+        #
+        # if not single_scans:
+        #     try:
+        #         e_summed, i_summed, b_summed = self.sum_scans(e, i, b)
+        #         e, i, b = e_summed, i_summed, b_summed
+        #     except Exception as exception:
+        #         Log.error('Summing of scans failed: {}'.format(exception))
 
 
         end = time.time()
         fmt = "Spectra summed [Took {:2f} s]".format(end-start)
         Log.debug(fmt)
 
-        return e, i, b
+        return result
 
 
     def add_analyzer(self, analyzer):
@@ -143,10 +266,10 @@ class Experiment(object):
         experiment.
         """
 
-        for s in self.scans:
-            if s.name == scan.name:
-                raise ValueError('Scan could not be added to the experiment '\
-                    'because the name already exists.')
+        # for s in self.scans:
+        #     if s.name == scan.name:
+        #         raise ValueError('Scan could not be added to the experiment '\
+        #             'because the name already exists.')
 
         self.scans.append(scan)
 
@@ -190,80 +313,80 @@ class Experiment(object):
         self.elastic_scans[self.scans.index(scan)] = elastic_scan
 
 
-    def sum_analyzers(self, energies, intensities):
-        """
-        Interpolate spectra for multiple analyzers linearly and sum them
-        scan-wise.
-        """
-
-        scan_names = energies.dtype.names
-
-        # Allocate memory
-        types = []
-        for scan_name in scan_names:
-            points = np.max([len(e) for e in energies[scan_name]])
-            types.append((scan_name, '{}f4'.format(points)))
-
-        ce = np.empty(1, dtype = types)
-        ii = np.zeros(1, dtype = types)
-
-        for scan_name in scan_names:
-
-            scan_energies = energies[scan_name]
-            scan_intensities = intensities[scan_name]
-
-            min_energy = np.max(list(e[0] for e in scan_energies))
-            max_energy = np.min(list(e[-1] for e in scan_energies))
-            points = np.max(list([len(e) for e in scan_energies]))
-
-            ce[scan_name] = np.linspace(min_energy, max_energy, points)
-
-            a = len(energies)
-            z = zip(range(a), scan_energies, scan_intensities)
-            for ind,e,i in z:
-                fi = interp.interp1d(e, i)
-                ii[scan_name] += fi(ce[scan_name])
-
-        return ce, ii
-
-
-    def sum_scans(self, energies, intensities):
-        """
-        Interpolate spectra for multiple scans linearly and sum them
-        analyzer-wise.
-        """
-
-        scan_names = energies.dtype.names
-
-        # Allocate memory
-        points = np.max([len(energies[name][0]) for name in scan_names])
-        types = [('Summed scans', '{}f4'.format(points))]
-
-        ce = np.empty(len(energies), dtype=types)
-        ii = np.zeros(len(energies), dtype=types)
-        bi = np.zeros(len(energies), dtype=types)
-
-        a = len(energies)
-        z = zip(range(a), energies, intensities, backgrounds)
-        for ind, energy, intensity, background in z:
-            min_energy = np.max([energy[name][0] for name in scan_names])
-            max_energy = np.min([energy[name][-1] for name in scan_names])
-
-            ce['Summed scans'][ind] = \
-                np.linspace(min_energy, max_energy, points)
-
-            for name in scan_names:
-                e = energy[name]
-                i = intensity[name]
-                fi = interp.interp1d(e, i)
-                ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
-
-                if backgrounds is not None:
-                    b = background[name]
-                    fb = interp.interp1d(e,b)
-                    bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
-
-        return ce, ii, bi
+    # def sum_analyzers(self, energies, intensities, backgrounds):
+    #     """
+    #     Interpolate spectra for multiple analyzers linearly and sum them
+    #     scan-wise.
+    #     """
+    #
+    #     scan_names = energies.dtype.names
+    #
+    #     # Allocate memory
+    #     types = []
+    #     for scan_name in scan_names:
+    #         points = np.max([len(e) for e in energies[scan_name]])
+    #         types.append((scan_name, '{}f4'.format(points)))
+    #
+    #     ce = np.empty(1, dtype = types)
+    #     ii = np.zeros(1, dtype = types)
+    #
+    #     for scan_name in scan_names:
+    #
+    #         scan_energies = energies[scan_name]
+    #         scan_intensities = intensities[scan_name]
+    #
+    #         min_energy = np.max(list(e[0] for e in scan_energies))
+    #         max_energy = np.min(list(e[-1] for e in scan_energies))
+    #         points = np.max(list([len(e) for e in scan_energies]))
+    #
+    #         ce[scan_name] = np.linspace(min_energy, max_energy, points)
+    #
+    #         a = len(energies)
+    #         z = zip(range(a), scan_energies, scan_intensities)
+    #         for ind,e,i in z:
+    #             fi = interp.interp1d(e, i)
+    #             ii[scan_name] += fi(ce[scan_name])
+    #
+    #     return ce, ii
+    #
+    #
+    # def sum_scans(self, energies, intensities, backgrounds):
+    #     """
+    #     Interpolate spectra for multiple scans linearly and sum them
+    #     analyzer-wise.
+    #     """
+    #
+    #     scan_names = energies.dtype.names
+    #
+    #     # Allocate memory
+    #     points = np.max([len(energies[name][0]) for name in scan_names])
+    #     types = [('Summed scans', '{}f4'.format(points))]
+    #
+    #     ce = np.empty(len(energies), dtype=types)
+    #     ii = np.zeros(len(energies), dtype=types)
+    #     bi = np.zeros(len(energies), dtype=types)
+    #
+    #     a = len(energies)
+    #     z = zip(range(a), energies, intensities, backgrounds)
+    #     for ind, energy, intensity, background in z:
+    #         min_energy = np.max([energy[name][0] for name in scan_names])
+    #         max_energy = np.min([energy[name][-1] for name in scan_names])
+    #
+    #         ce['Summed scans'][ind] = \
+    #             np.linspace(min_energy, max_energy, points)
+    #
+    #         for name in scan_names:
+    #             e = energy[name]
+    #             i = intensity[name]
+    #             fi = interp.interp1d(e, i)
+    #             ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
+    #
+    #             if backgrounds is not None:
+    #                 b = background[name]
+    #                 fb = interp.interp1d(e,b)
+    #                 bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
+    #
+    #     return ce, ii, bi
 
 
 class Scan(object):
@@ -297,22 +420,24 @@ class Scan(object):
         with open(self.log_file, 'r') as content_file:
             content = content_file.read()
 
-        print(content)
         # pattern = r'(\d+\.\d+)\s'*8+r'.*'+r'(\d+\.\d+)\s'*3
         pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
         matches = re.findall(pattern, content)
         enc_dcm_ener = [0]*len(matches)
-        pin2 = [0]*len(matches)
+        i01 = np.zeros(len(matches))
+        i02 = np.zeros(len(matches))
+        tfy = np.zeros(len(matches))
+        trans = np.zeros(len(matches))
         for ind, match in enumerate(matches):
-            _,_,_,e,i01,tfy,trans,i02,_,_,_,_,_,_ = match
+            _,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
             enc_dcm_ener[ind] = float(e)
-            i01 = float(i01)
-            i02 = float(i02)
-            tfy = float(tfy)
-            trans = float(trans)
+            i01[ind] = float(i01str)
+            i02[ind] = float(i02str)
+            tfy[ind] = float(tfystr)
+            trans[ind] = float(transstr)
 
         self.energies = enc_dcm_ener
-        self.monitor = i01
+        self.monitor = i02
 
         # plt.plot(pin2)
         # plt.show()
@@ -334,6 +459,7 @@ class Scan(object):
         # plt.imshow(np.log(arr))
         # plt.show()
 
+
     def save_scan(self, path, analyzers):
         """Save energy loss spectra of this scan object into a textfile."""
         arr = np.array(self.get_energy_loss_spectrum(analyzers))
@@ -352,33 +478,39 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_loss_spectrum(self, analyzers, bg_model = None):
+    def get_energy_spectrum(self, analyzers, bg_model = None):
 
-        t = '{}f4'.format(len(self.images))
-        energies = np.empty(len(analyzers), dtype = t)
-        intensities = np.empty(len(analyzers), dtype = t)
-        backgrounds = np.empty(len(analyzers), dtype = t)
+        t = []
+        for ind, an in enumerate(analyzers):
+            x0,_,x1,_ = an.roi
+            t.append((an.name, '{}f4'.format(len(np.arange(x0, x1+1)))))
+
+
+        energies = np.empty(len(self.images), dtype = t)
+        intensities = np.empty(len(self.images), dtype = t)
+        backgrounds = np.empty(len(self.images), dtype = t)
 
         for ind, an in enumerate(analyzers):
-            b, s = an.get_signal_series(images=self.images, base=self.energies)
+            b, s = an.get_signal_series(images=self.images)
 
-            s /= self.monitor
+            for ind in range(len(s)):
+                s[ind] /= self.monitor[ind]
 
-            if bg_model is None:
-                bg_model = self.bg_model
-
-            if bg_model is not None:
-                try:
-                    bg = bg_model.get_background(b, an)
-                except Exception as e:
-                    Log.error('Background was not determined: {}'.format(e))
-                    bg = np.zeros(len(s))
-            else:
-                bg = np.zeros(len(s))
-
-            energies[ind] = b
-            intensities[ind] = s
-            backgrounds[ind] = bg
+            #
+            # if bg_model is None:
+            #     bg_model = self.bg_model
+            #
+            # if bg_model is not None:
+            #     try:
+            #         bg = bg_model.get_background(b, an)
+            #     except Exception as e:
+            #         Log.error('Background was not determined: {}'.format(e))
+            #         bg = np.zeros(len(s))
+            # else:
+            bg = np.zeros(s.shape)
+            energies[an.name] = b
+            intensities[an.name] = s
+            backgrounds[an.name] = bg
 
         return energies, intensities, backgrounds
 
@@ -406,7 +538,7 @@ class Analyzer(object):
         """Specify *pixels* as list of tuples"""
 
         if isinstance(roi, list):
-            self.roi = np.array(list)
+            self.roi = np.array(roi)
         elif isinstance(roi, np.ndarray):
             self.roi = roi
         else:
@@ -429,13 +561,14 @@ class Analyzer(object):
         x0,y0,x1,y1 = self.roi
         ii = np.sum(image[y0:y1+1,x0:x1+1], axis = 0)
 
-        try:
-            ea = self.calibration.get_e_axis(self, signal, self.roi)
-        except:
-            ea = np.arange(len(signal))
-            fmt = "Energy axis could not be determined for analyzer {}."
-            Log.error(fmt.format(self.name))
+        # try:
+        #     ea = self.calibration.get_e_axis(self, signal, self.roi)
+        # except:
+        #     ea = np.arange(len(ii))
+        #     fmt = "Energy axis could not be determined for analyzer {}."
+        #     Log.error(fmt.format(self.name))
 
+        ea = np.arange(len(ii))
         return ea, ii
 
 
@@ -445,7 +578,7 @@ class Analyzer(object):
         """
 
         start = time.time()
-
+        x0, y0, x1, y1 = self.roi
         ea = np.empty((len(images), len(np.arange(x0, x1+1))))
         ii = np.empty((len(images), len(np.arange(x0, x1+1))))
         for ind, image in enumerate(images):

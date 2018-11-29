@@ -38,8 +38,16 @@ class AnalysisResult(object):
         l = self.labels
 
 
+        if scanning_type:
+            intensity = []
+            for intens in i:
+                intensity.append(np.sum(intens))
+        i = np.array(i)
+
+
         if not single_analyzers:
             e, i, b, l = self.sum_analyzers(e, i, b, l)
+
         # if not single_scans:
         #     e, i, b, l = self.sum_scans(e, i, b, l)
 
@@ -421,20 +429,35 @@ class Scan(object):
             content = content_file.read()
 
         # pattern = r'(\d+\.\d+)\s'*8+r'.*'+r'(\d+\.\d+)\s'*3
-        pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
+
+        # Before pin3 diode stopped working
+        # pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
+
+        #After pin3 diode stopped working
+        pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
+
+
         matches = re.findall(pattern, content)
         enc_dcm_ener = [0]*len(matches)
         i01 = np.zeros(len(matches))
         i02 = np.zeros(len(matches))
         tfy = np.zeros(len(matches))
         trans = np.zeros(len(matches))
+
+        print(matches)
         for ind, match in enumerate(matches):
-            _,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
+
+            # Before pin3 diode stopped working
+            #_,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
+
+            #After pin3 diode stopped working
+            _,_,_,e,i01str,tfystr,i02str,_,_ = match
+
             enc_dcm_ener[ind] = float(e)
             i01[ind] = float(i01str)
             i02[ind] = float(i02str)
             tfy[ind] = float(tfystr)
-            trans[ind] = float(transstr)
+            # trans[ind] = float(transstr)
 
         self.energies = enc_dcm_ener
         self.monitor = i02
@@ -478,7 +501,11 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_spectrum(self, analyzers, bg_model = None):
+    def get_energy_spectrum(self, analyzers, scanning_type = False):
+
+        if scanning_type:
+            t = len(self.energies)
+        else:
 
         t = []
         for ind, an in enumerate(analyzers):

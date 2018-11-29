@@ -204,7 +204,6 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Enable to plot seperate curves for analyzer signals")
         b.toggled.connect(self.update_plot_manually)
-        b.setVisible(False)
         tb.addWidget(b)
         buttons['single_analyzers'] = b
 
@@ -215,7 +214,6 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Enable to plot seperate curves for individual scans")
         b.toggled.connect(self.update_plot_manually)
-        b.setVisible(False)
         tb.addWidget(b)
         buttons['single_scans'] = b
 
@@ -300,6 +298,7 @@ class SpectralPlot(QtGui.QWidget):
         subtract_background = self.buttons['subtract_background'].isChecked()
         normalize = self.buttons['normalize'].isChecked()
         scanning_type = self.buttons['scanning_type'].isChecked()
+
         analysis_result = experiment.get_spectrum()
 
         # Plot current data:
@@ -328,10 +327,12 @@ class SpectralPlot(QtGui.QWidget):
         e, i, b, l = analysis_result.get_curves(
             single_analyzers, single_scans, scanning_type)
 
+        pens = self._get_pens(e, i, b, single_analyzers, single_scans)
+        #
+        # print(pens)
 
-
-
-        for energies, intensities, backgrounds, labels in zip(e,i,b,l):
+        z = zip(range(len(e)), e,i,b,l)
+        for scan_ind, energies, intensities, backgrounds, labels in z:
 
             # plot analyzers or sum of analyzers
             if scanning_type:
@@ -364,7 +365,7 @@ class SpectralPlot(QtGui.QWidget):
         # act_analyzer_names = [a.name for a in experiment.analyzers if a.active]
         # act_analyzer_names = list(act_analyzer_names)
         #
-        # # Plot analyzers:
+        # # Plot analyzers:single_scans,
         # z = zip(range(len(energies)), energies, intensities, backgrounds)
         # for ind0, energy, intensity, background in z:
         #     name = act_analyzer_names[ind0]
@@ -408,7 +409,7 @@ class SpectralPlot(QtGui.QWidget):
         #
         #     else:
         #         color_index = all_analyzer_names.index(name)
-        #         col = colors[color_index,0]
+        #         col = colors[color_index,0]single_scans,
         #
         #         scan_name = energy.dtype.names[0]
         #
@@ -443,16 +444,44 @@ class SpectralPlot(QtGui.QWidget):
         #                 self.plot.plot(pe,pb * fac, pen=pen)
 
 
-    def _get_colors(self, no_of_scans, no_of_analyzers):
-        colors = np.empty((no_of_scans, no_of_analyzers), dtype = '4i4')
+    def _get_pens(self, e, i, b, single_analyzers, single_scans):
+        no_scans = len(e)
+        no_analzyers = len(e[0][0])
+        colors = np.empty((no_scans, no_analzyers), dtype = '4i4')
+        pens = []
 
-        col = cm.rainbow(np.linspace(0,1.0,no_of_scans))
+        if single_analyzers and single_scans:
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_of_scans)), (1, no_analzyers))
 
-        for analyzer in range(no_of_analyzers):
-            blend = (no_of_analyzers-analyzer) / no_of_analyzers * 55 + 200
-            colors[:,analyzer] = col * blend
+        elif single_analyzers and not single_scans:
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, single_analyzers)), (no_scans, 1))
 
-        return colors
+        elif not single_analyzers and single_scans:
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers))
+
+        else:
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers))
+
+
+        for ind_s, scan in enumerate(e):
+            pens_scan = []
+            for ind_a, analyzer in enumerate(scan):
+                c = colors[ind_s, ind_a]
+                pens_scan.append(pg.mkPen(color=c, style=QtCore.Qt.SolidLine))
+            pens.append(pens_scan)
+
+        return np.array(pens)
+
+
+        # colors = np.empty((no_of_scans, no_of_analyzers), dtype = '4i4')
+        #
+        # col = cm.rainbow(np.linspace(0,1.0,no_of_scans))
+        #
+        # for analyzer in range(no_of_analyzers):
+        #     blend = (no_of_analyzers-analyzer) / no_of_analyzers * 55 + 200
+        #     colors[:,analyzer] = col * blend
+        #
+        # return colors
 
 
     def _get_background_pen(self, color):

@@ -325,30 +325,45 @@ class SpectralPlot(QtGui.QWidget):
         scanning_type = False, subtract_background = True, normalize = False):
 
         e, i, b, l = analysis_result.get_curves(
-            single_analyzers, single_scans, scanning_type)
+            single_scans, single_analyzers, scanning_type)
 
         pens = self._get_pens(e, i, b, single_analyzers, single_scans)
-        #
         # print(pens)
 
-        z = zip(range(len(e)), e,i,b,l)
-        for scan_ind, energies, intensities, backgrounds, labels in z:
+        # Plot scans:
 
-            # plot analyzers or sum of analyzers
-            if scanning_type:
-                intensity = []
-                for intens in intensities:
-                    intensity.append(np.sum(intens))
+        z1 = zip(range(len(e)), e, i, b, l)
+        for ind_s, energy, intensity, background, label in z1:
+            # Plot analyzers
+            z2 = zip(range(len(energy)), energy, intensity, background, label)
+            for ind_a, single_e, single_i, single_b, single_l in z2:
 
-                energy = labels
+                if subtract_background:
+                    self.plot.plot(single_e, single_i - single_b,
+                        pen = pens[ind_s, ind_a], name = single_l)
+                else:
+                    self.plot.plot(single_e,single_i, name = single_l,
+                    pen = pens[ind_s, ind_a])
+                    # self.plot.plot(single_e, single_b)
 
-
-                self.plot.plot(energy,intensity)
-            else:
-                intensity = np.sum(intensities, axis = 0)
-                energy = energies[0]
-                self.plot.plot(energy,intensity)
-
+        # z = zip(range(len(e)), e,i,b,l)
+        # for scan_ind, energies, intensities, backgrounds, labels in z:
+        #
+        #     # plot analyzers or sum of analyzers
+        #     if scanning_type:
+        #         intensity = []
+        #         for intens in intensities:
+        #             intensity.append(np.sum(intens))
+        #
+        #         energy = labels
+        #
+        #
+        #         self.plot.plot(energy,intensity)
+        #     else:
+        #         intensity = np.sum(intensities, axis = 0)
+        #         energy = energies[0]
+        #         self.plot.plot(energy,intensity)
+        #
 
 
 
@@ -446,29 +461,29 @@ class SpectralPlot(QtGui.QWidget):
 
     def _get_pens(self, e, i, b, single_analyzers, single_scans):
         no_scans = len(e)
-        no_analzyers = len(e[0][0])
-        colors = np.empty((no_scans, no_analzyers), dtype = '4i4')
-        pens = []
+        no_analzyers = len(e[0])
 
         if single_analyzers and single_scans:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_of_scans)), (1, no_analzyers))
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers,1))
 
         elif single_analyzers and not single_scans:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, single_analyzers)), (no_scans, 1))
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_analzyers)), (no_scans, 1,1))
 
         elif not single_analyzers and single_scans:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers))
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers,1))
 
         else:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers))
+            colors = np.tile(cm.rainbow(np.linspace(0,1.0,no_scans)), (1, no_analzyers,1))
 
-
+        pens = []
         for ind_s, scan in enumerate(e):
             pens_scan = []
             for ind_a, analyzer in enumerate(scan):
-                c = colors[ind_s, ind_a]
+                c = QtGui.QColor(*colors[ind_s, ind_a]*255)
                 pens_scan.append(pg.mkPen(color=c, style=QtCore.Qt.SolidLine))
             pens.append(pens_scan)
+
+
 
         return np.array(pens)
 
@@ -730,6 +745,8 @@ class XSMainWindow(QtGui.QMainWindow):
             # Check higher directory
             test_path = os.path.join(os.path.split(path)[0], log_file)
             if not os.path.isfile(test_path):
+                fmt = "Unable to read scan {}. Logfile (*.fio) not found!"
+                Log.error(fmt.format(path))
                 return
 
 

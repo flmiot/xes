@@ -245,7 +245,6 @@ registerParameterType('scan', ScanParameter, override=True)
 
 class CalibrationParameter(CustomParameter):
     def __init__(self, **opts):
-        print(opts)
         self.calibration = Calibration()
         self.calibration.name = opts['name']
         experiment.add_calibration(self.calibration)

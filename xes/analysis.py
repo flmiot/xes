@@ -17,130 +17,301 @@ Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 
+
+class Label(object):
+    def __init__(self):
+        self.labels = {}        # Dict of type {ScanName: [Analyzer1, ...], }
+
+    def add_scan_labels(self, label_dict):
+        self.labels.update(label_dict)
+
+    def get_labels(self, single_scans = True, single_analyzers = True):
+        """
+        S           Number of scans
+        A           Number of analyzers
+
+        Return S x A array of labels if single_scans = False and
+        single_analyzers = False
+
+        Return S x 1 array of labels if single_scans = False and
+        single_analyzers = True
+
+        Return A x 1 array of labels if single_scans = True and
+        single_analyzers = False
+
+        Return single labels if single_scans = False and
+        single_analyzers = False
+        """
+
+        lret = []
+        if single_scans and single_analyzers:
+            fmt = "{} - {}"
+            for scan, analyzers in zip(self.labels, self.labels.values()):
+                lret.append(list([fmt.format(scan, a) for a in analyzers]))
+
+        elif single_scans and not single_analyzers:
+            fmt = "{} - Summed: {}"
+            for scan, analyzers in zip(self.labels, self.labels.values()):
+                a_str = self.make_comma_separated_list(analyzers)
+                lret.append([fmt.format(scan, a_str)])
+
+        elif not single_scans and single_analyzers:
+            scan_names = list(self.labels.keys())
+            s_str = self.make_comma_separated_list(scan_names)
+            first_key = list(self.labels.keys())[0]
+            fmt = "{} - Summed: {}"
+            lret.append(list([fmt.format(a, s_str) for a in self.labels[first_key]]))
+
+        else:
+            scan_names = list(self.labels.keys())
+            s_str = self.make_comma_separated_list(scan_names)
+            first_key = list(self.labels.keys())[0]
+            analyzer_names = list([a for a in self.labels[first_key]])
+            a_str = self.make_comma_separated_list(analyzer_names)
+            lret.append(["Summed: {} - Summed: {}".format(s_str, a_str)])
+
+        return np.array(lret)
+
+
+    def make_comma_separated_list(self, labels):
+        li = ""
+        for ind, l in enumerate(labels):
+            if ind == len(labels) - 1:
+                li += l
+            elif ind == 0 and ind == len(labels) - 1:
+                li += l
+            else:
+                li += l + ", "
+
+        return li
+
+
 class AnalysisResult(object):
     def __init__(self):
-        self.energies    = []  # list of 3d arrays
-        self.intensities = []  # list of 3d arrays
-        self.background  = []  # list of 3d arrays
-        self.labels      = []  # list of names for each 3d array
+        self.in_e           = []
+        self.out_e          = []
+        self.intensities    = []
+        self.background     = []
+        self.labels         = Label()
 
 
-    def add_data(self, energy, intensity, background, label):
-        self.energies.append(energy)
+    def add_data(self, in_e, out_e, intensity, background, label_dict):
+        self.in_e.append(in_e)
+        self.out_e.append(out_e)
         self.intensities.append(intensity)
         self.background.append(background)
-        self.labels.append(label)
+        self.labels.add_scan_labels(label_dict)
 
 
-    def get_curves(self, single_analyzers, single_scans, scanning_type = False):
+    def get_curves(self, single_scans, single_analyzers, scanning_type = False):
+        """
+        S           Number of scans
+        A           Number of analyzers
+        P_IN        Number of points along e_in axis
 
-        e, i, b = self.energies, self.intensities, self.background
-        l = self.labels
+        in_e        Array (S x A x P_IN)
+        out_e       Array (S x A)
+        i           Array (S x A x P_IN)
+        b           Array (S x A x P_IN)
+        l           Array (S x A)
+        """
 
+        in_e, out_e = self.in_e, self.out_e
+        i, b = self.intensities, self.background
+        l = self.labels.get_labels(single_scans, single_analyzers)
+
+        no_scans = len(i)
+        no_analyzers = len(i[0])
+        no_points_in_e = len(i[0][0])
 
         if scanning_type:
-            intensity = []
-            for intens in i:
-                intensity.append(np.sum(intens))
-        i = np.array(i)
+            ii = np.empty((no_scans, no_analyzers), dtype = list)
+            ei = np.empty((no_scans, no_analyzers), dtype = list)
+            bi = np.empty((no_scans, no_analyzers), dtype = list)
 
+            i = np.array(i)
+            b = np.array(b)
+            for ind_s in range(no_scans):
+                for ind_a in range(no_analyzers):
+                    g1 = [np.sum(img) for img in i[ind_s, ind_a]]
+                    g2 = [np.sum(img) for img in b[ind_s, ind_a]]
+                    ii[ind_s, ind_a] = list(g1)
+                    bi[ind_s, ind_a] = list(g2)
+                    ei[ind_s, ind_a] = in_e[ind_s]
+
+        else:
+            ii = np.sum(i, axis = 2)
+            bi = np.sum(b, axis = 2)
+            ei = np.array(out_e)
 
         if not single_analyzers:
-            e, i, b, l = self.sum_analyzers(e, i, b, l)
+            ei, ii, bi = self.sum_analyzers(ei, ii, bi)
 
-        # if not single_scans:
-        #     e, i, b, l = self.sum_scans(e, i, b, l)
+        if not single_scans:
+            ei, ii, bi = self.sum_scans(ei, ii, bi)
 
-        return e, i, b, l
+        return ei, ii, bi, l
 
 
-    def sum_analyzers(self, energies, intensities, backgrounds, labels):
+    def sum_analyzers(self, energies, intensities, backgrounds):
         """
         Interpolate spectra for multiple analyzers linearly and sum them
         scan-wise.
+
+        S               Number of scans (of 1 if summed)
+        A               Number of analyzers (of 1 if summed)
+        P               Number of points along energy axis
+
+        energies        Array (S x A x P)
+        intensities     Array (S x A x P)
+        backgrounds     Array (S x A x P)
         """
 
-        energies_summed = []
-        intensities_summed = []
-        backgrounds_summed = []
-
-        # Iterate scans
-        l = []
-        for ind, label in enumerate(labels):
+        energies_summed = np.empty((len(energies),1), dtype = list)
+        intensities_summed = np.empty((len(energies),1), dtype = list)
+        backgrounds_summed = np.empty((len(energies),1), dtype = list)
 
 
+        # Iterate over scans
+        z = zip(range(len(energies)), energies, intensities, backgrounds)
+        for ind, energy, intensity, background in z:
 
-            energy = energies[ind]
-            intensity = intensities[ind]
-            background = backgrounds[ind]
+            ce, ii, b = self._interpolate_and_sum(energy, intensity, background)
 
-            energy_summed = []
-            intensity_summed = []
-            background_summed = []
+            energies_summed[ind] = [ce]
+            intensities_summed[ind] = [ii]
+            backgrounds_summed[ind] = [b]
 
-            # Iterate images
-            for ei, ii, bi in zip(energy, intensity, background):
+        return energies_summed, intensities_summed, backgrounds_summed
 
-                min_energy = np.max(list(e[0] for e in ei))
-                max_energy = np.min(list(e[-1] for e in ei))
-                points = np.max(list([len(e) for e in ei]))
-                ir = np.zeros(points, dtype = np.float)
-                ce = np.linspace(min_energy, max_energy, points)
+        # shape = []
+        # for scan in intensities:
+        #     for analyzer in scan:
+        #         shape.append()
+        #
+        #
+        # # Iterate scans
+        # l = []
+        # for ind, label in enumerate(labels):
+        #
+        #
+        #
+        #     energy = energies[ind]
+        #     intensity = intensities[ind]
+        #     background = backgrounds[ind]
+        #
+        #     energy_summed = []
+        #     intensity_summed = []
+        #     background_summed = []
+        #
+        #     # Iterate images
+        #     for ei, ii, bi in zip(energy, intensity, background):
+        #
+        #         min_energy = np.max(list(e[0] for e in ei))
+        #         max_energy = np.min(list(e[-1] for e in ei))
+        #         points = np.max(list([len(e) for e in ei]))
+        #         ir = np.zeros(points, dtype = np.float)
+        #         ce = np.linspace(min_energy, max_energy, points)
+        #
+        #
+        #
+        #         energy_summed.append(ce)
+        #         intensity_summed.append(ir)
+        #         background_summed.append(points) # TODO: Wrong!
+        #
+        #     energies_summed.append(energy_summed)
+        #     intensities_summed.append(intensity_summed)
+        #     backgrounds_summed.append(backgrounds_summed)
+        #
+        # return  energies_summed, intensities_summed, backgrounds_summed
 
-                a = len(ei)
-                z = zip(range(a), ei, ii)
-                for ind,e,i in z:
-                    fi = interp.interp1d(e, i)
-                    ir += fi(ce)
 
-                energy_summed.append(ce)
-                intensity_summed.append(ir)
-                background_summed.append(points) # TODO: Wrong!
+    def sum_scans(self, energies, intensities, backgrounds):
+        """
+        Interpolate spectra for multiple scans linearly and sum them
+        analyzer-wise.
 
-            energies_summed.append(energy_summed)
-            intensities_summed.append(intensity_summed)
-            backgrounds_summed.append(backgrounds_summed)
+        S               Number of scans (of 1 if summed)
+        A               Number of analyzers (of 1 if summed)
+        P               Number of points along energy axis
 
-        return  energies_summed, intensities_summed, backgrounds_summed, labels
+        energies        Array (S x A x P)
+        intensities     Array (S x A x P)
+        backgrounds     Array (S x A x P)
+        """
+
+        energies_summed = np.empty((1, len(energies[0])), dtype = list)
+        intensities_summed = np.empty((1, len(energies[0])), dtype = list)
+        backgrounds_summed = np.empty((1, len(energies[0])), dtype = list)
+
+        # Iterate over analyzers
+
+        z = zip(range(len(energies[0])), energies.T, intensities.T, backgrounds.T)
+
+        for ind, energy, intensity, background in z:
+            ce, ii, b = self._interpolate_and_sum(energy, intensity, background)
+            energies_summed.T[ind] = [ce]
+            intensities_summed.T[ind]  = [ii]
+            backgrounds_summed.T[ind]  = [b]
+
+        return energies_summed, intensities_summed, backgrounds_summed
+
+        #     min_energy = np.max(list(e[0] for e in energy))
+        #     max_energy = np.min(list(e[-1] for e in intensity))
+        #     points = np.max(list([len(e) for e in intensity]))
+        #     ii = np.zeros(points, dtype = np.float)
+        #     ce = np.linspace(min_energy, max_energy, points)
+        #
+        #
+        # # Allocate memory
+        # points = np.max([len(energies[name][0]) for name in scan_names])
+        # types = [('Summed scans', '{}f4'.format(points))]
+        #
+        # ce = np.empty(len(energies), dtype=types)
+        # ii = np.zeros(len(energies), dtype=types)
+        # bi = np.zeros(len(energies), dtype=types)
+        #
+        # a = len(energies)
+        # z = zip(range(a), energies, intensities, backgrounds)
+        # for ind, energy, intensity, background in z:
+        #     min_energy = np.max([energy[name][0] for name in scan_names])
+        #     max_energy = np.min([energy[name][-1] for name in scanning_typescan_names])
+        #
+        #     ce['Summed scans'][ind] = \
+        #          np.linspace(min_energy, max_energy, points)
+        #
+        #     for name in scan_names:
+        #         e = energy[name]
+        #         i = intensity[name]
+        #         fi = interp.interp1d(e, i)
+        #         ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
+        #
+        #         if backgrounds is not None:
+        #             b = background[name]
+        #             fb = interp.interp1d(e,b)
+        #             bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
+        #
+        # return ce, ii, bi, l
 
 
-    # def sum_scans(self, energies, intensities, background, labels):
-    #     """
-    #     Interpolate spectra for multiple scans linearly and sum them
-    #     analyzer-wise.
-    #     """
-    #
-    #     scan_names = energies.dtype.names
-    #
-    #     # Allocate memory
-    #     points = np.max([len(energies[name][0]) for name in scan_names])
-    #     types = [('Summed scans', '{}f4'.format(points))]
-    #
-    #     ce = np.empty(len(energies), dtype=types)
-    #     ii = np.zeros(len(energies), dtype=types)
-    #     bi = np.zeros(len(energies), dtype=types)
-    #
-    #     a = len(energies)
-    #     z = zip(range(a), energies, intensities, backgrounds)
-    #     for ind, energy, intensity, background in z:
-    #         min_energy = np.max([energy[name][0] for name in scan_names])
-    #         max_energy = np.min([energy[name][-1] for name in scanning_typescan_names])
-    #
-    #         ce['Summed scans'][ind] = \
-    #              np.linspace(min_energy, max_energy, points)
-    #
-    #         for name in scan_names:
-    #             e = energy[name]
-    #             i = intensity[name]
-    #             fi = interp.interp1d(e, i)
-    #             ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
-    #
-    #             if backgrounds is not None:
-    #                 b = background[name]
-    #                 fb = interp.interp1d(e,b)
-    #                 bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
-    #
-    #     return ce, ii, bi, l
+    def _interpolate_and_sum(self, energy, intensity, background):
+
+        min_energy = np.max(list(e[0] for e in energy))
+        max_energy = np.min(list(e[-1] for e in energy))
+        points = np.max(list([len(i) for i in intensity]))
+        ii = np.zeros(points, dtype = np.float)
+        ce = np.linspace(min_energy, max_energy, points)
+
+        a = len(energy)
+        z = zip(range(a), energy, intensity)
+        for ind,e,i in z:
+            fi = interp.interp1d(e, i)
+            ii += fi(ce)
+
+        # not yet done
+        background = np.zeros(len(ce))
+
+        return ce, ii, background
 
 
 class Experiment(object):
@@ -156,7 +327,7 @@ class Experiment(object):
         self.scans                  = [] # List of all added scans
         self.analyzers              = [] # List of all added anaylzers
         self.bg_rois                = [] # List of all available background ROIs
-        self.calibrations         = [] # List of energy calibrations
+        self.calibrations           = [] # List of energy calibrations
 
 
 
@@ -199,8 +370,10 @@ class Experiment(object):
             # elastic_scan = self.elastic_scans[index]
             # elastic_scan.center_analyzers(active_analyzers)
 
-            ener, inte, back = scan.get_energy_spectrum(active_analyzers)
-            result.add_data(ener, inte, back, scan.energies)
+            in_e, out_e, inte, back = scan.get_energy_spectrum(active_analyzers)
+
+            d = {scan.name : list([a.name for a in active_analyzers])}
+            result.add_data(in_e, out_e, inte, back, d)
 
             # plt.plot(back[0])
             # plt.show()
@@ -444,7 +617,6 @@ class Scan(object):
         tfy = np.zeros(len(matches))
         trans = np.zeros(len(matches))
 
-        print(matches)
         for ind, match in enumerate(matches):
 
             # Before pin3 diode stopped working
@@ -501,45 +673,37 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_spectrum(self, analyzers, scanning_type = False):
+    def get_energy_spectrum(self, analyzers):
 
-        if scanning_type:
-            t = len(self.energies)
-        else:
-
-        t = []
-        for ind, an in enumerate(analyzers):
-            x0,_,x1,_ = an.roi
-            t.append((an.name, '{}f4'.format(len(np.arange(x0, x1+1)))))
-
-
-        energies = np.empty(len(self.images), dtype = t)
-        intensities = np.empty(len(self.images), dtype = t)
-        backgrounds = np.empty(len(self.images), dtype = t)
+        in_e = np.array(self.energies)
+        out_e = np.empty((len(analyzers)), dtype = list)
+        intensity = np.empty((len(analyzers), len(in_e)), dtype = list)
+        background = np.empty((len(analyzers), len(in_e)), dtype = list)
 
         for ind, an in enumerate(analyzers):
-            b, s = an.get_signal_series(images=self.images)
+            b, s = an.get_signal_series(images = self.images)
 
-            for ind in range(len(s)):
-                s[ind] /= self.monitor[ind]
+            out_e[ind] = b
+            intensity[ind] = s
+            background[ind] = np.zeros(s.shape)
 
-            #
-            # if bg_model is None:
-            #     bg_model = self.bg_model
-            #
-            # if bg_model is not None:
-            #     try:
-            #         bg = bg_model.get_background(b, an)
-            #     except Exception as e:
-            #         Log.error('Background was not determined: {}'.format(e))
-            #         bg = np.zeros(len(s))
-            # else:
-            bg = np.zeros(s.shape)
-            energies[an.name] = b
-            intensities[an.name] = s
-            backgrounds[an.name] = bg
+            # I0
+            intensity[ind] /= self.monitor
 
-        return energies, intensities, backgrounds
+        return in_e, out_e, intensity, background
+
+        # for ind, an in enumerate(analyzers):
+        #     b, s = an.get_signal_series(images=self.images)
+        #
+        #     for ind in range(len(s)):
+        #         s[ind] /= self.monitor[ind]
+        #
+        #     bg = np.zeros(s.shape)
+        #     out_e.append(b)
+        #     intensity.append(s)
+        #     background.append(bg)
+        #
+        # return in_e, out_e, intensity, background
 
 
     def set_background_model(self, bg_model):
@@ -585,7 +749,8 @@ class Analyzer(object):
         if self.roi is None:
             raise ValueError("ROI needs to be set before use.")
 
-        x0,y0,x1,y1 = self.roi
+        x0,y0,x1,y1 = self.clip_roi(self.roi, image.shape)
+
         ii = np.sum(image[y0:y1+1,x0:x1+1], axis = 0)
 
         # try:
@@ -605,12 +770,12 @@ class Analyzer(object):
         """
 
         start = time.time()
-        x0, y0, x1, y1 = self.roi
-        ea = np.empty((len(images), len(np.arange(x0, x1+1))))
-        ii = np.empty((len(images), len(np.arange(x0, x1+1))))
+        x0, y0, x1, y1 = self.clip_roi(self.roi, images[0].shape)
+        # ea = np.empty(len(np.arange(x0, x1+1))))
+        ea = np.arange(len(np.arange(x0, x1+1)))
+        ii = np.empty(len(images), dtype = list)
         for ind, image in enumerate(images):
-            e_axis, intensity = self.get_signal(image)
-            ea[ind] = e_axis
+            _, intensity = self.get_signal(image)
             ii[ind] = intensity
 
         end = time.time()
@@ -618,6 +783,20 @@ class Analyzer(object):
         Log.debug(fmt)
 
         return ea, ii
+
+    def clip_roi(self, roi, shape):
+        x0, y0, x1, y1 = roi
+
+        if x0 < 0:
+            x0 = 0
+        if y0 < 0:
+            y0 = 0
+        if x1 > shape[1] - 1:
+            x1 = shape[1] - 1
+        if y1 > shape[0] - 1:
+            y1 = shape[0] - 1
+
+        return [x0,y0,x1,y1]
 
 
 class Calibration(object):

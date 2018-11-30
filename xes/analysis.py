@@ -346,6 +346,7 @@ class Experiment(object):
 
         start = time.time()
         active_analyzers = list([a for a in self.analyzers if a.active])
+        active_background_rois = list([b for b in self.bg_rois if b.active])
         active_scans = list([s for s in self.scans if s.active])
 
         if len(active_scans) < 1:
@@ -370,7 +371,8 @@ class Experiment(object):
             # elastic_scan = self.elastic_scans[index]
             # elastic_scan.center_analyzers(active_analyzers)
 
-            in_e, out_e, inte, back = scan.get_energy_spectrum(active_analyzers)
+            in_e, out_e, inte, back = scan.get_energy_spectrum(active_analyzers,
+                active_background_rois)
 
             d = {scan.name : list([a.name for a in active_analyzers])}
             result.add_data(in_e, out_e, inte, back, d)
@@ -673,7 +675,7 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_spectrum(self, analyzers):
+    def get_energy_spectrum(self, analyzers, bg_rois):
 
         in_e = np.array(self.energies)
         out_e = np.empty((len(analyzers)), dtype = list)
@@ -681,11 +683,11 @@ class Scan(object):
         background = np.empty((len(analyzers), len(in_e)), dtype = list)
 
         for ind, an in enumerate(analyzers):
-            b, s = an.get_signal_series(images = self.images)
+            b, s, bg = an.get_signal_series(images = self.images, bg_rois)
 
             out_e[ind] = b
             intensity[ind] = s
-            background[ind] = np.zeros(s.shape)
+            background[ind] = bg
 
             # I0
             intensity[ind] /= self.monitor
@@ -764,25 +766,29 @@ class Analyzer(object):
         return ea, ii
 
 
-    def get_signal_series(self, images):
+    def get_signal_series(self, images, background_rois = None):
         """
 
         """
 
         start = time.time()
         x0, y0, x1, y1 = self.clip_roi(self.roi, images[0].shape)
-        # ea = np.empty(len(np.arange(x0, x1+1))))
+
         ea = np.arange(len(np.arange(x0, x1+1)))
         ii = np.empty(len(images), dtype = list)
+        bg = np.zeros(ii.shape)
+
         for ind, image in enumerate(images):
-            _, intensity = self.get_signal(image)
-            ii[ind] = intensity
+            _, ii[ind] = self.get_signal(image)
+            bg[ind] = self.get_background(image, background_rois)
+
+
 
         end = time.time()
         fmt = "Returned signal series [Took {:2f} s]".format(end-start)
         Log.debug(fmt)
 
-        return ea, ii
+        return ea, ii, bg
 
     def clip_roi(self, roi, shape):
         x0, y0, x1, y1 = roi
@@ -797,6 +803,30 @@ class Analyzer(object):
             y1 = shape[0] - 1
 
         return [x0,y0,x1,y1]
+
+
+    def get_background(self, image, background_rois):
+        x0, y0, x1, y1 = self.clip_roi(self.roi, image.shape)
+        bg = np.zeros(len(np.arange(x0,x1+1)))
+
+        pos = np.array([(y1-y0)/2 + y0, (x1-x0)/2 + x0])
+        size = y1 - y0 + 1
+
+        upper = None
+        lower = None
+
+        # Find nearest background ROIs
+        for bg_roi in background_rois:
+
+        if upper not None:
+
+        if lower not None:
+
+        return bg
+
+
+
+
 
 
 class Calibration(object):

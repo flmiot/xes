@@ -196,15 +196,20 @@ class ScanParameter(CustomParameter):
         monitor_sum = opts['monitor_sum']
         offset_x = opts['offset_x']
         offset_y = opts['offset_y']
+        elastic = opts['elastic']
 
 
         experiment.add_scan(scan)
         names = list([s.name for s in experiment.scans])
 
+        if not elastic in names:
+            names.append(elastic)
+
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':include})
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
-        # c.append({'name': 'Scanning type', 'type':'bool', 'value':scanning_type})
+        # c.append({'name': 'Energy calibration', 'type':'list', 'values': names,
+        #     'value':elastic})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
         # c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
@@ -420,7 +425,7 @@ class ScanGroupParameter(CustomGroupParameter):
 
 
     def addNew(self, scan = None, include = True, scanning_type = False,
-        monitor_sum = True, offset_x = 0, offset_y = 0):
+        monitor_sum = True, elastic = None, offset_x = 0, offset_y = 0):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
         provided (i.e. scan = None).
@@ -441,8 +446,7 @@ class ScanGroupParameter(CustomGroupParameter):
         opts['monitor_sum'] = monitor_sum
         opts['offset_x'] = offset_x
         opts['offset_y'] = offset_y
-
-        # opts['bg_model_name'] = bg_model
+        opts['elastic'] = elastic
 
         super(self.__class__, self).addNew(**opts)
 

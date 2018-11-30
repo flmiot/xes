@@ -257,7 +257,7 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Normalize the area under each curve to 1000")
         b.toggled.connect(self.update_plot_manually)
-        b.setVisible(False)
+        # b.setVisible(False)
         tb.addWidget(b)
         buttons['normalize'] = b
 
@@ -350,40 +350,28 @@ class SpectralPlot(QtGui.QWidget):
             z2 = zip(range(len(energy)), energy, intensity, background, label)
             for ind_a, single_e, single_i, single_b, single_l in z2:
 
+                print(single_b)
                 if subtract_background:
-                    self.plot.plot(single_e, single_i - single_b,
+
+                    sub = single_i - single_b
+
+                    if normalize:
+                        sub, _ = self._normalize_curve(sub)
+
+                    self.plot.plot(single_e, sub,
                         pen = pens[ind_s, ind_a], name = single_l)
                 else:
-                    self.plot.plot(single_e,single_i, name = single_l,
+
+                    if normalize:
+                        single_i, fac = self._normalize_curve(single_i)
+                    else:
+                        fac = 1.0
+
+                    self.plot.plot(single_e, single_i, name = single_l,
                         pen = pens[ind_s, ind_a])
 
-                    self.plot.plot(single_e, single_b,
+                    self.plot.plot(single_e, single_b * fac,
                         pen = pens_bg[ind_s, ind_a])
-
-        # z = zip(range(len(e)), e,i,b,l)
-        # for scan_ind, energies, intensities, backgrounds, labels in z:
-        #
-        #     # plot analyzers or sum of analyzers
-        #     if scanning_type:
-        #         intensity = []
-        #         for intens in intensities:
-        #             intensity.append(np.sum(intens))
-        #
-        #         energy = labels
-        #
-        #
-        #         self.plot.plot(energy,intensity)
-        #     else:
-        #         intensity = np.sum(intensities, axis = 0)
-        #         energy = energies[0]
-        #         self.plot.plot(energy,intensity)
-        #
-
-
-
-
-
-
 
         # sh = [len(energies.dtype.names),len(energies)]
         # if not single_scans:

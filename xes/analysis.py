@@ -140,8 +140,12 @@ class AnalysisResult(object):
                     ei[ind_s, ind_a] = in_e[ind_s]
 
         else:
-            ii = np.sum(i, axis = 2)
-            bi = np.sum(b, axis = 2)
+            z = zip(range(len(i)), i, b)
+            ii = []
+            bi = []
+            for ind, il, bl in z:
+                ii.append(np.sum(il, axis = 1))
+                bi.append(np.sum(bl, axis = 1))
             ei = np.array(out_e)
 
         if not single_analyzers:
@@ -300,18 +304,16 @@ class AnalysisResult(object):
         max_energy = np.min(list(e[-1] for e in energy))
         points = np.max(list([len(i) for i in intensity]))
         ii = np.zeros(points, dtype = np.float)
+        bg = np.zeros(points, dtype = np.float)
         ce = np.linspace(min_energy, max_energy, points)
 
-        a = len(energy)
-        z = zip(range(a), energy, intensity)
-        for ind,e,i in z:
+        for e, i, b in zip(energy, intensity, background):
             fi = interp.interp1d(e, i)
+            fb = interp.interp1d(e, b)
             ii += fi(ce)
+            bg += fb(ce)
 
-        # not yet done
-        background = np.zeros(len(ce))
-
-        return ce, ii, background
+        return ce, ii, bg
 
 
 class Experiment(object):
@@ -376,9 +378,6 @@ class Experiment(object):
 
             d = {scan.name : list([a.name for a in active_analyzers])}
             result.add_data(in_e, out_e, inte, back, d)
-
-            # plt.plot(back[0])
-            # plt.show()
 
         end = time.time()
         fmt = "Single spectra obtained [Took {:2f} s]".format(end-start)
@@ -675,7 +674,7 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_spectrum(self, analyzers, bg_rois):
+    def get_energy_spectrum(self, analyzers, background_rois):
 
         in_e = np.array(self.energies)
         out_e = np.empty((len(analyzers)), dtype = list)
@@ -683,7 +682,8 @@ class Scan(object):
         background = np.empty((len(analyzers), len(in_e)), dtype = list)
 
         for ind, an in enumerate(analyzers):
-            b, s, bg = an.get_signal_series(images = self.images, bg_rois)
+            b, s, bg = an.get_signal_series(images = self.images,
+                background_rois = background_rois)
 
             out_e[ind] = b
             intensity[ind] = s
@@ -691,6 +691,7 @@ class Scan(object):
 
             # I0
             intensity[ind] /= self.monitor
+            background[ind] /= self.monitor
 
         return in_e, out_e, intensity, background
 
@@ -725,6 +726,16 @@ class Analyzer(object):
         self.roi                = None      # xmin,ymin,xmax,ymax e.g. [0,0,5,5]
         self.active             = True
         self.name               = name
+
+
+    def size(self):
+        x0, y0, x1, y1 = self.roi
+        return y1 - y0 + 1
+
+
+    def pos(self):
+        x0, y0, x1, y1 = self.roi
+        return np.array([(y1-y0)/2 + y0, (x1-x0)/2 + x0])
 
 
     def set_roi(self, roi):
@@ -776,7 +787,7 @@ class Analyzer(object):
 
         ea = np.arange(len(np.arange(x0, x1+1)))
         ii = np.empty(len(images), dtype = list)
-        bg = np.zeros(ii.shape)
+        bg = np.zeros(len(images), dtype = list)
 
         for ind, image in enumerate(images):
             _, ii[ind] = self.get_signal(image)
@@ -806,23 +817,48 @@ class Analyzer(object):
 
 
     def get_background(self, image, background_rois):
-        x0, y0, x1, y1 = self.clip_roi(self.roi, image.shape)
-        bg = np.zeros(len(np.arange(x0,x1+1)))
 
-        pos = np.array([(y1-y0)/2 + y0, (x1-x0)/2 + x0])
-        size = y1 - y0 + 1
+        bg = np.zeros(image.shape[1])
 
         upper = None
         lower = None
 
         # Find nearest background ROIs
         for bg_roi in background_rois:
+            if bg_roi.pos()[0] > self.pos()[0]:
+                if upper is None:
+                    upper = bg_roi
+                else:
+                    dis_self_roi = np.linalg.norm(self.pos() - bg_roi.pos())
+                    dis_self_upper = np.linalg.norm(self.pos() - upper.pos())
+                    if dis_self_roi < dis_self_upper:
+                        upper = bg_roi
+            else:
+                if lower is None:
+                    lower = bg_roi
+                else:
+                    dis_self_roi = np.linalg.norm(self.pos() - bg_roi.pos())
+                    dis_self_lower = np.linalg.norm(self.pos() - lower.pos())
+                    if dis_self_roi < dis_self_lower:
+                        lower = bg_roi
 
-        if upper not None:
+        if not upper is None:
+            x0, y0, x1, y1 = self.clip_roi(upper.roi, image.shape)
+            bg_upper = np.sum(image[y0:y1+1, x0:x1+1], axis = 0)
+            bg[x0:x1+1] += bg_upper * self.size() / upper.size()
 
-        if lower not None:
+        if not lower is None:
+            x0, y0, x1, y1 = self.clip_roi(lower.roi, image.shape)
+            bg_lower = np.sum(image[y0:y1+1, x0:x1+1], axis = 0)
+            bg[x0:x1+1] += bg_lower * self.size() / lower.size()
 
-        return bg
+        if not lower is None and not upper is None:
+            bg /= 2
+
+        x0, _, x1, _ = self.clip_roi(self.roi, image.shape)
+        # plt.plot(bg)
+        # plt.show()
+        return bg[x0:x1+1]
 
 
 

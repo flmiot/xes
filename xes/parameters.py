@@ -139,15 +139,23 @@ class BackgroundROI(pg.ROI):
     def __init__(self, name, position, size, monitor): # angle,
         # Make this a different color
 
-        pg.ROI.__init__(self, pos=position, size=size) #, scaleSnap=True, translateSnap=True)
-        self.addScaleHandle([1, 1], [0, 0])
-        # self.addRotateHandle([0, 0], [0.5, 0.5])
-        # self.setAngle(angle)
+        # Use a custom pen to differentiate this ROI from the signal ROIs
+        c = QtGui.QColor(*[177, 206, 198])
+        pen = pg.mkPen(color=c, style=QtCore.Qt.DashLine)
 
-        self.background_roi = Analyzer(name)
-        experiment.add_background_roi(self.background_roi)
-        self.setToolTip(self.background_roi.name)
-        #monitor.add_analyzer_roi(self)
+        pg.ROI.__init__(self, pos=position, size=size, pen = pen) #, scaleSnap=True, translateSnap=True)
+        self.addScaleHandle([1, 1], [0, 0])
+        self.addScaleHandle([0, 0], [1, 1])
+        self.addScaleHandle([0, 1], [1, 0])
+        self.addScaleHandle([1, 0], [0, 1])
+
+        self.addScaleHandle([0.5, 1], [0.5, 0])
+        self.addScaleHandle([0.5, 0], [0.5, 1])
+
+        self.analyzer = Analyzer(name)
+        experiment.add_background_roi(self.analyzer)
+        self.setToolTip(self.analyzer.name)
+        monitor.add_background_roi(self)
 
 
 class BackgroundParameter(CustomParameter):

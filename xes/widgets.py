@@ -87,6 +87,18 @@ class Monitor(QtGui.QWidget):
 
         self.proxies.append(proxy)
 
+
+    def add_background_roi(self, roi):
+        vb = self.image_view.getView()
+        vb.addItem(roi)
+        # roi.sigRegionChangeFinished.connect(self.update_analyzer)
+
+        proxy = pg.SignalProxy(roi.sigRegionChanged,
+            rateLimit=2, delay = 0.1, slot = self.update_analyzer)
+
+        self.proxies.append(proxy)
+
+
     def update_analyzer(self, *args):
 
         roi = args[0][0]
@@ -234,7 +246,7 @@ class SpectralPlot(QtGui.QWidget):
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
         b.setToolTip("Subtract background models")
         b.toggled.connect(self.update_plot_manually)
-        b.setVisible(False)
+        # b.setVisible(False)
         tb.addWidget(b)
         buttons['subtract_background'] = b
 
@@ -327,7 +339,7 @@ class SpectralPlot(QtGui.QWidget):
         e, i, b, l = analysis_result.get_curves(
             single_scans, single_analyzers, scanning_type)
 
-        pens = self._get_pens(e, i, b, single_analyzers, single_scans)
+        pens, pens_bg = self._get_pens(e, i, b, single_analyzers, single_scans)
         # print(pens)
 
         # Plot scans:
@@ -343,8 +355,10 @@ class SpectralPlot(QtGui.QWidget):
                         pen = pens[ind_s, ind_a], name = single_l)
                 else:
                     self.plot.plot(single_e,single_i, name = single_l,
-                    pen = pens[ind_s, ind_a])
-                    # self.plot.plot(single_e, single_b)
+                        pen = pens[ind_s, ind_a])
+
+                    self.plot.plot(single_e, single_b,
+                        pen = pens_bg[ind_s, ind_a])
 
         # z = zip(range(len(e)), e,i,b,l)
         # for scan_ind, energies, intensities, backgrounds, labels in z:
@@ -461,31 +475,39 @@ class SpectralPlot(QtGui.QWidget):
 
     def _get_pens(self, e, i, b, single_analyzers, single_scans):
         no_scans = len(e)
-        no_analzyers = len(e[0])
+        no_analyzers = len(e[0])
 
         if single_analyzers and single_scans:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers,1))
+            shades = cm.rainbow(np.linspace(0,1.0, no_scans))
+            colors = np.tile(shades, (no_analyzers, 1, 1))
+            colors = np.transpose(colors, (1,0,2))
 
         elif single_analyzers and not single_scans:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_analzyers)), (no_scans, 1,1))
+            shades = cm.rainbow(np.linspace(0, 1.0, no_analyzers))
+            colors = np.tile(shades, (1,1,1))
 
         elif not single_analyzers and single_scans:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0, no_scans)), (1, no_analzyers,1))
+            shades = cm.rainbow(np.linspace(0,1.0, no_scans))
+            colors = np.tile(shades, (1, 1, 1))
+            colors = np.transpose(colors, (1,0,2))
 
         else:
-            colors = np.tile(cm.rainbow(np.linspace(0,1.0,no_scans)), (1, no_analzyers,1))
+            shades = cm.rainbow(np.linspace(0,1.0, 1))
+            colors = np.tile(shades, (1,1,1))
 
         pens = []
+        pens_bg = []
         for ind_s, scan in enumerate(e):
             pens_scan = []
+            pens_scan_bg = []
             for ind_a, analyzer in enumerate(scan):
                 c = QtGui.QColor(*colors[ind_s, ind_a]*255)
                 pens_scan.append(pg.mkPen(color=c, style=QtCore.Qt.SolidLine))
+                pens_scan_bg.append(pg.mkPen(color=c, style=QtCore.Qt.DashLine))
             pens.append(pens_scan)
+            pens_bg.append(pens_scan_bg)
 
-
-
-        return np.array(pens)
+        return np.array(pens), np.array(pens_bg)
 
 
         # colors = np.empty((no_of_scans, no_of_analyzers), dtype = '4i4')
@@ -562,7 +584,7 @@ class XSMainWindow(QtGui.QMainWindow):
 
         docks['scans'] = QtGui.QDockWidget("Scan objects", self)
         docks['analyzer'] = QtGui.QDockWidget("Analyzers", self)
-        # docks['background'] = QtGui.QDockWidget("Background ROIs", self)
+        docks['background'] = QtGui.QDockWidget("Background ROIs", self)
         docks['monitor'] = QtGui.QDockWidget('Monitor',self)
         docks['spectrum'] = QtGui.QDockWidget('Energy spectrum',self)
         # docks['herfd'] = QtGui.QDockWidget('HERFD',self)
@@ -579,7 +601,7 @@ class XSMainWindow(QtGui.QMainWindow):
 
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['scans'])
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['analyzer'])
-        # self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['background'])
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['background'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['monitor'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['spectrum'])
         # self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['herfd'])
@@ -595,15 +617,15 @@ class XSMainWindow(QtGui.QMainWindow):
         self.actionAddScan.triggered.connect(par.addNew)
         self.par = par
 
-        # self.bgroi_tree = ParameterTree(showHeader = False)
-        # self.bgroi_tree.setObjectName('BackgroundRoiTree')
-        # par = Parameter.create(type='backgroundRoiGroup', child_type = 'backgroundRoi', gui=self)
-        # self.bgroi_tree.setParameters(par, showTop=False)
-        # par.sigUpdate.connect(self.bgroi_tree_handler)
-        # self.actionAddBgRoi = QtGui.QAction(('Add new background ROI'), self)
-        # self.actionAddBgRoi.setShortcut(QtGui.QKeySequence("Ctrl+B"))
-        # self.addAction(self.actionAddBgRoi)
-        # self.actionAddBgRoi.triggered.connect(par.addNew)
+        self.bgroi_tree = ParameterTree(showHeader = False)
+        self.bgroi_tree.setObjectName('BackgroundRoiTree')
+        par = Parameter.create(type='backgroundRoiGroup', child_type = 'backgroundRoi', gui=self)
+        self.bgroi_tree.setParameters(par, showTop=False)
+        par.sigUpdate.connect(self.bgroi_tree_handler)
+        self.actionAddBgRoi = QtGui.QAction(('Add new background ROI'), self)
+        self.actionAddBgRoi.setShortcut(QtGui.QKeySequence("Ctrl+B"))
+        self.addAction(self.actionAddBgRoi)
+        self.actionAddBgRoi.triggered.connect(par.addNew)
 
 
         # self.background_tree = ParameterTree(showHeader = False)
@@ -646,7 +668,7 @@ class XSMainWindow(QtGui.QMainWindow):
 
         docks['scans'].setWidget(self.scan_tree)
         # docks['scans'].widget().setMinimumSize(QtCore.QSize(400,300))
-        # docks['background'].setWidget(self.bgroi_tree)
+        docks['background'].setWidget(self.bgroi_tree)
         # docks['background'].widget().setMinimumSize(QtCore.QSize(400,300))
         docks['analyzer'].setWidget(self.analyzer_tree)
         # docks['analyzer'].widget().setMinimumSize(QtCore.QSize(400,300))

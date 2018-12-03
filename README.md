@@ -4,7 +4,7 @@
 
 ## Prerequisites
 -	Python 3.4 or higher
--	Non-standard python package PyQtGraph (http://www.pyqtgraph.org/)
+-	Non-standard python package __PyQtGraph__ (http://www.pyqtgraph.org/), written by Luke Campagnola
 
 It is recommended to use Anaconda (https://www.anaconda.com/) and run
 ```

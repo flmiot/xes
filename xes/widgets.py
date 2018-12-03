@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from xes import experiment
 from xes.analysis import Scan
 import xes.parameters
-from xes.parameters import ScanParameter
+from xes.parameters import ScanParameter, AnalyzerParameter, BackgroundParameter
 
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -22,15 +22,19 @@ class Monitor(QtGui.QWidget):
 
     sigAnalyzerRoiChanged = QtCore.Signal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, master = None, **kwargs):
         super(self.__class__, self).__init__()
         self.setup_ui()
+        self.master = master
         self.rois = []
 
         self.proxy = pg.SignalProxy(self.image_view.getView().scene().sigMouseMoved,
             rateLimit=60, slot = self._update_cursor_position)
 
         self.proxies = []
+
+
+        self.image_view.sigTimeChanged.connect(self.call_for_plot_update)
 
 
     def setup_ui(self):
@@ -65,16 +69,22 @@ class Monitor(QtGui.QWidget):
             self.image_view.setImage(img)
         else:
             img = np.transpose(img, axes = [0,2,1])
-            if scan.energies[0] > scan.energies[1]:
-                self.image_view.setImage(img[::-1], xvals = np.array(scan.energies)[::-1])
+            x =  np.array(scan.energies)
+            if len(np.unique(x)) < len(img):
+                x = np.arange(len(img))
+
+            if x[0] > x[1]:
+                self.image_view.setImage(img[::-1], xvals = x[::-1])
             else:
-                self.image_view.setImage(img, xvals = np.array(scan.energies))
-
-
+                self.image_view.setImage(img, xvals = x)
 
 
         name = os.path.split(scan.log_file)[1]
         self.title.setText('<font color="white" size="2"><b>'+name+'</b>')
+
+    def call_for_plot_update(self):
+        if self.master.plot.buttons['single_image'].isChecked():
+            self.master.plot.update_plot()
 
 
     def add_analyzer_roi(self, roi):
@@ -155,13 +165,15 @@ class Monitor(QtGui.QWidget):
 
 class SpectralPlot(QtGui.QWidget):
 
-    def __init__(self, *args, **kwargs):
-        super(self.__class__, self).__init__()
+    def __init__(self, *args, master = None, **kwargs):
+        super(self.__class__, self).__init__(*args, **kwargs)
+        self.master = master
         self.setup_ui()
         self.ghosts = []
 
         self.proxy = pg.SignalProxy(self.plot.getPlotItem().scene().sigMouseMoved,
             rateLimit=60, slot = self._update_cursor_position)
+
 
 
 
@@ -261,6 +273,18 @@ class SpectralPlot(QtGui.QWidget):
         tb.addWidget(b)
         buttons['normalize'] = b
 
+        b = QtGui.QToolButton(self)
+        b.setIcon(QtGui.QIcon('icons/single_image.png'))
+        b.setCheckable(True)
+        b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
+        fmt = "Check to display the corresponding single image spectrum for the" +\
+            " energy selected in the monitor window."
+        b.setToolTip(fmt)
+        b.toggled.connect(self.update_plot_manually)
+        # b.setVisible(False)
+        tb.addWidget(b)
+        buttons['single_image'] = b
+
 
         self.label = QtGui.QLabel()
         self.label.setText('<font color="white">Cursor position</font>')
@@ -311,11 +335,18 @@ class SpectralPlot(QtGui.QWidget):
         normalize = self.buttons['normalize'].isChecked()
         scanning_type = self.buttons['scanning_type'].isChecked()
 
+        if self.buttons['single_image'].isChecked():
+            single_image = self.master.get_selected_image_index()
+        else:
+            single_image = None
+
         analysis_result = experiment.get_spectrum()
+
+
 
         # Plot current data:
         self._plot(analysis_result, single_analyzers, single_scans,
-            scanning_type, subtract_background, normalize)
+            scanning_type, subtract_background, normalize, single_image)
 
 
         # # Plot ghosts
@@ -334,10 +365,11 @@ class SpectralPlot(QtGui.QWidget):
 
 
     def _plot(self, analysis_result, single_analyzers = True, single_scans = True,
-        scanning_type = False, subtract_background = True, normalize = False):
+        scanning_type = False, subtract_background = True, normalize = False,
+        single_image = None):
 
         e, i, b, l = analysis_result.get_curves(
-            single_scans, single_analyzers, scanning_type)
+            single_scans, single_analyzers, scanning_type, single_image)
 
         pens, pens_bg = self._get_pens(e, i, b, single_analyzers, single_scans)
         # print(pens)
@@ -350,7 +382,6 @@ class SpectralPlot(QtGui.QWidget):
             z2 = zip(range(len(energy)), energy, intensity, background, label)
             for ind_a, single_e, single_i, single_b, single_l in z2:
 
-                print(single_b)
                 if subtract_background:
 
                     sub = single_i - single_b
@@ -578,12 +609,12 @@ class XSMainWindow(QtGui.QMainWindow):
         # docks['herfd'] = QtGui.QDockWidget('HERFD',self)
 
 
-        self.plot = SpectralPlot()
+        self.plot = SpectralPlot(master = self)
         docks['spectrum'].setWidget(self.plot)
         docks['spectrum'].widget().setMinimumSize(QtCore.QSize(400,300))
 
 
-        self.monitor = Monitor()
+        self.monitor = Monitor(master = self)
         docks['monitor'].setWidget(self.monitor)
         docks['monitor'].widget().setMinimumSize(QtCore.QSize(400,300))
 
@@ -595,6 +626,7 @@ class XSMainWindow(QtGui.QMainWindow):
         # self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['herfd'])
 
         self.scan_tree = ParameterTree(showHeader = False)
+        self.scan_tree.setToolTip(ScanParameter.__doc__)
         self.scan_tree.setObjectName('ScanTree')
         par = Parameter.create(type='scanGroup', child_type='scan', gui=self)
         self.scan_tree.setParameters(par, showTop=False)
@@ -606,6 +638,7 @@ class XSMainWindow(QtGui.QMainWindow):
         self.par = par
 
         self.bgroi_tree = ParameterTree(showHeader = False)
+        self.bgroi_tree.setToolTip(BackgroundParameter.__doc__)
         self.bgroi_tree.setObjectName('BackgroundRoiTree')
         par = Parameter.create(type='backgroundRoiGroup', child_type = 'backgroundRoi', gui=self)
         self.bgroi_tree.setParameters(par, showTop=False)
@@ -627,6 +660,7 @@ class XSMainWindow(QtGui.QMainWindow):
         # self.actionAddModel.triggered.connect(par.addNew)
 
         self.analyzer_tree = ParameterTree(showHeader = False)
+        self.analyzer_tree.setToolTip(AnalyzerParameter.__doc__)
         self.analyzer_tree.setObjectName('AnalyzerTree')
         par = Parameter.create(type='analyzerGroup', child_type = 'analyzer', gui=self)
         self.analyzer_tree.setParameters(par, showTop=False)
@@ -760,7 +794,7 @@ class XSMainWindow(QtGui.QMainWindow):
                 return
 
 
-        s = Scan(log_file = test_path, imgage_files = files)
+        s = Scan(log_file = test_path, image_files = files)
 
         loader = QThread_Loader(s)
         self.threads.append(loader)
@@ -781,6 +815,10 @@ class XSMainWindow(QtGui.QMainWindow):
 
         Log.debug("Scan {} loaded.".format(s))
         return s
+
+    def get_selected_image_index(self):
+        """ Returns the index of the currently selected image in monitor. """
+        return self.monitor.image_view.currentIndex
 
 
     def parse_input_file(self, file):

@@ -103,7 +103,8 @@ class AnalysisResult(object):
         self.labels.add_scan_labels(label_dict)
 
 
-    def get_curves(self, single_scans, single_analyzers, scanning_type = False):
+    def get_curves(self, single_scans, single_analyzers, scanning_type = False,
+        single_image = None):
         """
         S           Number of scans
         A           Number of analyzers
@@ -125,27 +126,48 @@ class AnalysisResult(object):
         no_points_in_e = len(i[0][0])
 
         if scanning_type:
-            ii = np.empty((no_scans, no_analyzers), dtype = list)
-            ei = np.empty((no_scans, no_analyzers), dtype = list)
-            bi = np.empty((no_scans, no_analyzers), dtype = list)
-
-            i = np.array(i)
-            b = np.array(b)
-            for ind_s in range(no_scans):
-                for ind_a in range(no_analyzers):
-                    g1 = [np.sum(img) for img in i[ind_s, ind_a]]
-                    g2 = [np.sum(img) for img in b[ind_s, ind_a]]
-                    ii[ind_s, ind_a] = list(g1)
-                    bi[ind_s, ind_a] = list(g2)
-                    ei[ind_s, ind_a] = in_e[ind_s]
-
-        else:
-            z = zip(range(len(i)), i, b)
             ii = []
             bi = []
+            ei = []
+
+            # Iterate scans
+            z = zip(range(len(i)), i, b)
+            for ind_s, il, bl in z:
+                ti = []
+                tb = []
+                te = []
+
+                # Iterate analyzers
+                for ind_a in range(no_analyzers):
+                    g1 = [np.sum(img) for img in il[ind_a]]
+                    g2 = [np.sum(img) for img in bl[ind_a]]
+                    ti.append(list(g1))
+                    tb.append(list(g2))
+                    te.append(in_e[ind_s])
+                ii.append(np.array(ti))
+                tb.append(np.array(tb))
+                ei.append(np.array(te))
+
+            # ii = np.array(ii)
+            # bi = np.array(bi)
+            # ei = np.array(ei)
+
+        else:
+
+            ii = []
+            bi = []
+
+            # Iterate scans
+            z = zip(range(len(i)), i, b)
             for ind, il, bl in z:
-                ii.append(np.sum(il, axis = 1))
-                bi.append(np.sum(bl, axis = 1))
+                if not single_image is None:
+                    ii.append(il[:, single_image])
+                    bi.append(bl[:, single_image])
+                else:
+                    ii.append(np.sum(il, axis = 1))
+                    bi.append(np.sum(bl, axis = 1))
+            ii = np.array(ii)
+            bi = np.array(bi)
             ei = np.array(out_e)
 
         if not single_analyzers:
@@ -369,12 +391,18 @@ class Experiment(object):
 
             index = self.scans.index(scan)
 
-            # Center analyzers with the corresponding elastic scan
-            # elastic_scan = self.elastic_scans[index]
-            # elastic_scan.center_analyzers(active_analyzers)
+            # Calibrate analyzers
+            try:
+                calibration = self.calibrations[index]
+                calibration.calibrate_energy_for_analyzers(
+                    analyzers = active_analyzers)
+            except Exception as e:
+                calibration = None
+                fmt = "Energy calibration for scan {} failed: {}."
+                Log.error(fmt.format(scan.name, e))
 
             in_e, out_e, inte, back = scan.get_energy_spectrum(active_analyzers,
-                active_background_rois)
+                active_background_rois, calibration)
 
             d = {scan.name : list([a.name for a in active_analyzers])}
             result.add_data(in_e, out_e, inte, back, d)
@@ -442,10 +470,8 @@ class Experiment(object):
         self.bg_rois.append(bg_roi)
 
 
-    def add_scan(self, scan):
-        """Add a scan object. Specify scan and corresponding elastic scan. Raise
-        and exception if a scan with same name already exists inside this
-        experiment.
+    def add_scan(self, scan, calibration = None):
+        """Add a scan object. Specify scan and corresponding calibration.
         """
 
         # for s in self.scans:
@@ -454,6 +480,7 @@ class Experiment(object):
         #             'because the name already exists.')
 
         self.scans.append(scan)
+        self.calibrations.append(calibration)
 
 
     def remove_scan(self, scan_name):
@@ -478,21 +505,24 @@ class Experiment(object):
     #     self.bg_models.append(bg_model)
 
 
-    def change_elastic_scan(self, scan, elastic_scan_name):
-        """Replace current elastic scan for *scan* with
-        *elastic_scan_name*. Raise an exception, if *scan* is unknown.
+    def change_calibration(self, scan, calibration):
+        """Replace current energy calibration for *scan* with
+        *calibration*. Raise an exception, if *scan* is unknown.
         """
         if scan not in self.scans:
-            raise ValueError("Elastic scan could not be set for scan. Scan "\
-                "unknown.")
+            fmt = "Calibration could not be set for scan. Scan {} unknown."
+            raise ValueError(fmt.format(scan))
 
-        names = list([s.name for s in self.scans])
-        if elastic_scan_name in names:
-            elastic_scan = self.scans[names.index(elastic_scan_name)]
-        else:
-            raise ValueError("Unknown elastic scan requested.")
+        self.calibrations[self.scans.index(scan)] = calibration
 
-        self.elastic_scans[self.scans.index(scan)] = elastic_scan
+        #
+        # names = list([s.name for s in self.scans])
+        # if elastic_scan_name in names:
+        #     elastic_scan = self.scans[names.index(elastic_scan_name)]
+        # else:
+        #     raise ValueError("Unknown elastic scan requested.")
+
+
 
 
     # def sum_analyzers(self, energies, intensities, backgrounds):
@@ -572,20 +602,20 @@ class Experiment(object):
 
 
 class Scan(object):
-    def __init__(self, log_file, imgage_files):
+    def __init__(self, log_file, image_files):
         """ Specify *logfile* as namestring and list of *image_files*.
         Assumes that logfile holds energy for each image.
         """
-        self.name       = os.path.splitext(os.path.split(log_file)[1])[0]
-        self.log_file   = log_file
-        self.files      = imgage_files
-        self.images     = None
-        self.energies   = None
-        self.monitor    = None
-        self.active     = True
-        # self.bg_model   = None
-        self.loaded     = False
-        self.offset     = [0,0]
+        self.name           = os.path.splitext(os.path.split(log_file)[1])[0]
+        self.log_file       = log_file
+        self.files          = image_files
+        self.images         = None
+        self.energies       = None
+        self.monitor        = None
+        self.active         = True
+        # self.bg_model     = None
+        self.loaded         = False
+        self.offset         = [0,0]
 
 
     @property
@@ -674,7 +704,8 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_spectrum(self, analyzers, background_rois):
+    def get_energy_spectrum(self, analyzers, background_rois,
+        calibration = None):
 
         in_e = np.array(self.energies)
         out_e = np.empty((len(analyzers)), dtype = list)
@@ -683,7 +714,8 @@ class Scan(object):
 
         for ind, an in enumerate(analyzers):
             b, s, bg = an.get_signal_series(images = self.images,
-                background_rois = background_rois)
+                background_rois = background_rois,
+                calibration = calibration)
 
             out_e[ind] = b
             intensity[ind] = s
@@ -708,9 +740,9 @@ class Scan(object):
         #
         # return in_e, out_e, intensity, background
 
-
-    def set_background_model(self, bg_model):
-        self.bg_model = bg_model
+    #
+    # def set_background_model(self, bg_model):
+    #     self.bg_model = bg_model
 
 
 class Analyzer(object):
@@ -721,11 +753,12 @@ class Analyzer(object):
         doing summed signal analysis.
         """
 
-        self.calibration        = None
+        # self.calibration        = None
         self.energy_offset      = 0.0
         self.roi                = None      # xmin,ymin,xmax,ymax e.g. [0,0,5,5]
         self.active             = True
         self.name               = name
+        self.mask               = None
 
 
     def size(self):
@@ -739,7 +772,6 @@ class Analyzer(object):
 
 
     def set_roi(self, roi):
-        """Specify *pixels* as list of tuples"""
 
         if isinstance(roi, list):
             self.roi = np.array(roi)
@@ -747,6 +779,28 @@ class Analyzer(object):
             self.roi = roi
         else:
             fmt = "ROI has to be specified like [xmin, ymin, xmax, ymax], "\
+                "either as list or np.ndarray."
+            raise Exception(fmt)
+
+
+    def get_roi(self, mask = None):
+
+        if mask is None:
+            mask = self.mask
+
+        if mask is None:
+            return self.roi
+        else:
+            return self.clip_roi(self.roi, mask)
+
+
+    def set_mask(self, mask):
+        if isinstance(mask, list):
+            self.mask = np.array(mask)
+        elif isinstance(mask, np.ndarray):
+            self.mask = mask
+        else:
+            fmt = "Mask has to be specified like [ymax, xmax], "\
                 "either as list or np.ndarray."
             raise Exception(fmt)
 
@@ -777,7 +831,8 @@ class Analyzer(object):
         return ea, ii
 
 
-    def get_signal_series(self, images, background_rois = None):
+    def get_signal_series(self, images, background_rois = None,
+        calibration = None):
         """
 
         """
@@ -785,7 +840,13 @@ class Analyzer(object):
         start = time.time()
         x0, y0, x1, y1 = self.clip_roi(self.roi, images[0].shape)
 
-        ea = np.arange(len(np.arange(x0, x1+1)))
+        if calibration is None:
+            ea = np.arange(len(np.arange(x0, x1+1)))
+        else:
+            ea = calibration.get_energy_axis(self)
+
+        print(ea.shape, ea)
+
         ii = np.empty(len(images), dtype = list)
         bg = np.zeros(len(images), dtype = list)
 
@@ -868,39 +929,106 @@ class Analyzer(object):
 class Calibration(object):
     def __init__(self):
         self.name           = None
-        self.main_analyzer  = None
         self.elastic_scan   = None
-        self.first_frame    = None
-        self.last_frame     = None
         self.analyzers      = []
-        self.offsets        = []
+        self.calibrations   = []
 
 
-    def register(self, analyzer):
+    def get_energy_axis(self, analyzer):
+        if analyzer not in self.analyzers:
+            raise Exception("No energy calibration found for this analyzer!")
 
-        if analyzer in self.analyzers:
-            raise Exception("Analyzer already registered for this calibration.")
+        x0, _, x1, _ = analyzer.get_roi()
+        x = np.arange(x0, x1+1)
 
-        self.analyzers.append(analyzer)
-        self.offsets.append(0.0)
-        self.calibrate(analyzer)
-        return self
-
-
-    def set_main_analyzer(self, analyzer):
-        self.main_analyzer = analyzer
-        self.calibrate(analyzer)
+        return self.calibrations[self.analyzers.index(analyzer)](x)
 
 
-    def get_e_axis(self, analyzer):
-        a = 1
+    def calibrate_energy_for_analyzers(self, analyzers, elastic_scan = None):
+
+        if elastic_scan is None:
+            elastic_scan = self.elastic_scan
+
+        if not isinstance(elastic_scan, Scan):
+            raise Exception("Elastic scan needs to be set before calibration!")
+
+        for analyzer in analyzers:
+            c = self._calibrate(analyzer, elastic_scan)
+            if analyzer in self.analyzers:
+                self.calibrations[self.analyzers.index(analyzer)] = c
+            else:
+                self.analyzers.append(analyzer)
+                self.calibrations.append(c)
 
 
-    def calibrate(self, analyzer):
-        if analyzer is self.main_analyzer:
-            a = 1
-        else:
-            a = 1
+
+    def _calibrate(self, analyzer, elastic_scan, detection_threshold = 0.5):
+        mask = elastic_scan.images[0].shape
+        x0,y0,x1,y1 = analyzer.get_roi(mask = mask)
+        images = np.sum(elastic_scan.images[:, y0:y1+1, x0:x1+1], axis = 1)
+
+
+        threshold = np.max(images[int(len(images) / 2)]) * detection_threshold
+
+        x = []
+        y = []
+        for ind, image in enumerate(images):
+            if np.max(image) < threshold:
+                continue
+            else:
+                x.append(elastic_scan.energies[ind])
+                y.append(self._get_peak_position(np.arange(len(image)), image))
+
+
+        plt.ion()
+        plt.plot(x,y)
+        plt.show()
+
+        return lambda x : x
+
+
+    def _get_peak_position(self, x, y, epsilon = 5):
+        x_max = np.argmax(y)
+        x_lower = x_max - epsilon
+        x_upper = x_max + epsilon
+
+        if x_lower < 0:
+            x_lower = 0
+        if x_upper >= len(y):
+            x_upper = len(y) - 1
+
+        x_cutout = np.arange(x_lower, x_upper+1)
+        y_cutout = y[x_lower:x_upper+1]
+
+        cumsum = np.cumsum(y_cutout)
+        f = interp.interp1d(cumsum, x_cutout)
+        return float(f(0.5*np.max(cumsum)))
+
+    # def register(self, analyzer):
+    #
+    #     if analyzer in self.analyzers:
+    #         raise Exception("Analyzer already registered for this calibration.")
+    #
+    #     self.analyzers.append(analyzer)
+    #     self.offsets.append(0.0)
+    #     self.calibrate(analyzer)
+    #     return self
+    #
+    #
+    # def set_main_analyzer(self, analyzer):
+    #     self.main_analyzer = analyzer
+    #     self.calibrate(analyzer)
+    #
+    #
+    # def get_e_axis(self, analyzer):
+    #     a = 1
+    #
+    #
+    # def calibrate(self, analyzer):
+    #     if analyzer is self.main_analyzer:
+    #         a = 1
+    #     else:
+    #         a = 1
 
 #
 # class BGModel(object):

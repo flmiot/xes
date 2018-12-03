@@ -87,6 +87,7 @@ class AnalyzerROI(pg.ROI):
         # self.addRotateHandle([0, 0], [0.5, 0.5])
 
         self.analyzer = Analyzer(name)
+        self.analyzer.set_mask([194, 486])
         experiment.add_analyzer(self.analyzer)
         self.setToolTip(self.analyzer.name)
         monitor.add_analyzer_roi(self)
@@ -109,7 +110,7 @@ class AnalyzerParameter(CustomParameter):
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
-        names = list([c.name for c in experiment.calibrations])
+        # names = list([c.name for c in experiment.calibrations])
         # c.append({'name': 'Energy calibration', 'type':'list', 'values':names,
         #     'value':opts['calibration']})
         # c.append({'name': 'Energy offset', 'type':'float', 'value':opts['offset'],
@@ -200,7 +201,8 @@ class ScanParameter(CustomParameter):
 
 
         experiment.add_scan(scan)
-        names = list([s.name for s in experiment.scans])
+        names = ['None']
+        names.extend(list([s.name for s in experiment.scans]))
 
         if not elastic in names:
             names.append(elastic)
@@ -208,8 +210,8 @@ class ScanParameter(CustomParameter):
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':include})
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
-        # c.append({'name': 'Energy calibration', 'type':'list', 'values': names,
-        #     'value':elastic})
+        c.append({'name': 'Elastic scan', 'type':'list', 'values': names,
+            'value':elastic})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
         # c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
@@ -229,6 +231,18 @@ class ScanParameter(CustomParameter):
         # self.scan.offset[0] = self.child('Offset (x)').value()
         # self.scan.offset[1] = self.child('Offset (y)').value()
 
+        calibration = Calibration()
+        elastic_name = self.child('Elastic scan').value()
+        if elastic_name is not "None":
+            ind = list([s.name for s in experiment.scans]).index(elastic_name)
+            elastic_scan = experiment.scans[ind]
+            calibration.elastic_scan = elastic_scan
+
+        experiment.change_calibration(self.scan, calibration)
+
+            # ind = list([s.name for s in experiment.scans]).index(self.scan.name)
+            # experiment.elastic_scans[ind] = elastic_scan
+
 
         # Set background model
         # bg_name = self.child('Background model').value()
@@ -245,13 +259,15 @@ class ScanParameter(CustomParameter):
         super(self.__class__, self).update(parameter)
 
 
-    # def update_lists(self):
-    #     d = dict()
-    #     # d['Elastic scan'] = list([s.name for s in experiment.scans])
-    #     # l = ['None']
-    #     # l.extend(list([b.name for b in experiment.bg_models]))
-    #     # d['Background model'] = l
-    #     super(self.__class__, self).update_lists(d)
+    def update_lists(self):
+        d = dict()
+        elastic_scans = ['None']
+        elastic_scans.extend(list([s.name for s in experiment.scans]))
+        d['Elastic scan'] = elastic_scans
+        # l = ['None']
+        # l.extend(list([b.name for b in experiment.bg_models]))
+        # d['Background model'] = l
+        super(self.__class__, self).update_lists(d)
 
 registerParameterType('scan', ScanParameter, override=True)
 
@@ -425,7 +441,7 @@ class ScanGroupParameter(CustomGroupParameter):
 
 
     def addNew(self, scan = None, include = True, scanning_type = False,
-        monitor_sum = True, elastic = None, offset_x = 0, offset_y = 0):
+        monitor_sum = True, elastic = "None", offset_x = 0, offset_y = 0):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
         provided (i.e. scan = None).
@@ -449,6 +465,7 @@ class ScanGroupParameter(CustomGroupParameter):
         opts['elastic'] = elastic
 
         super(self.__class__, self).addNew(**opts)
+        self.update_lists()
 
 
 registerParameterType('scanGroup', ScanGroupParameter, override=True)

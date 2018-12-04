@@ -126,31 +126,20 @@ class AnalysisResult(object):
         no_points_in_e = len(i[0][0])
 
         if scanning_type:
-            ii = []
-            bi = []
-            ei = []
+            ii = np.empty((no_scans, no_analyzers), dtype = list)
+            bi = np.empty((no_scans, no_analyzers), dtype = list)
+            ei = np.empty((no_scans, no_analyzers), dtype = list)
 
             # Iterate scans
             z = zip(range(len(i)), i, b)
             for ind_s, il, bl in z:
-                ti = []
-                tb = []
-                te = []
-
                 # Iterate analyzers
                 for ind_a in range(no_analyzers):
                     g1 = [np.sum(img) for img in il[ind_a]]
                     g2 = [np.sum(img) for img in bl[ind_a]]
-                    ti.append(list(g1))
-                    tb.append(list(g2))
-                    te.append(in_e[ind_s])
-                ii.append(np.array(ti))
-                tb.append(np.array(tb))
-                ei.append(np.array(te))
-
-            # ii = np.array(ii)
-            # bi = np.array(bi)
-            # ei = np.array(ei)
+                    ii[ind_s, ind_a] = np.array(g1)
+                    bi[ind_s, ind_a] = np.array(g2)
+                    ei[ind_s, ind_a] = np.array(in_e[ind_s])
 
         else:
 
@@ -324,7 +313,7 @@ class AnalysisResult(object):
 
         min_energy = np.max(list(np.min(e) for e in energy))
         max_energy = np.min(list(np.max(e) for e in energy))
-        print("min_energy", min_energy, "max_energy", max_energy)
+        # print("min_energy", min_energy, "max_energy", max_energy)
 
         points = np.max(list([len(i) for i in intensity]))
         ii = np.zeros(points, dtype = np.float)
@@ -332,6 +321,7 @@ class AnalysisResult(object):
         ce = np.linspace(min_energy, max_energy, points)
 
         for e, i, b in zip(energy, intensity, background):
+
             fi = interp.interp1d(e, i)
             fb = interp.interp1d(e, b)
             ii += fi(ce)

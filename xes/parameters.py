@@ -87,6 +87,9 @@ class AnalyzerROI(pg.ROI):
         # self.addRotateHandle([0, 0], [0.5, 0.5])
 
         self.analyzer = Analyzer(name)
+        x0,y0 = position[0] - size[0], position[1] - size[1]
+        x1,y1 = position[0] + size[0], position[1] + size[1]
+        self.analyzer.set_roi([x0,y0,x1,y1])
         self.analyzer.set_mask( mask = [195, 487] )
         experiment.add_analyzer(self.analyzer)
         self.setToolTip(self.analyzer.name)
@@ -154,6 +157,10 @@ class BackgroundROI(pg.ROI):
         self.addScaleHandle([0.5, 0], [0.5, 1])
 
         self.analyzer = Analyzer(name)
+        x0,y0 = position[0] - size[0], position[1] - size[1]
+        x1,y1 = position[0] + size[0], position[1] + size[1]
+        self.analyzer.set_roi([x0,y0,x1,y1])
+        self.analyzer.set_mask( mask = [195, 487] )
         experiment.add_background_roi(self.analyzer)
         self.setToolTip(self.analyzer.name)
         monitor.add_background_roi(self)

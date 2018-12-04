@@ -322,8 +322,10 @@ class AnalysisResult(object):
 
     def _interpolate_and_sum(self, energy, intensity, background):
 
-        min_energy = np.max(list(e[0] for e in energy))
-        max_energy = np.min(list(e[-1] for e in energy))
+        min_energy = np.max(list(np.min(e) for e in energy))
+        max_energy = np.min(list(np.max(e) for e in energy))
+        print("min_energy", min_energy, "max_energy", max_energy)
+
         points = np.max(list([len(i) for i in intensity]))
         ii = np.zeros(points, dtype = np.float)
         bg = np.zeros(points, dtype = np.float)

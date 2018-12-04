@@ -837,8 +837,6 @@ class Analyzer(object):
         else:
             ea = calibration.get_energy_axis(self)
 
-        print(ea.shape, ea)
-
         ii = np.empty(len(images), dtype = list)
         bg = np.zeros(len(images), dtype = list)
 

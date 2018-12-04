@@ -346,8 +346,6 @@ class SpectralPlot(QtGui.QWidget):
 
             analysis_result = experiment.get_spectrum()
 
-
-
             # Plot current data:
             self._plot(analysis_result, single_analyzers, single_scans,
                 scanning_type, subtract_background, normalize, single_image)

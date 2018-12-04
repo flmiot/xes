@@ -330,27 +330,27 @@ class SpectralPlot(QtGui.QWidget):
 
 
     def update_plot_manually(self):
-        # try:
-        self.clear_plot()
+        try:
+            self.clear_plot()
 
-        single_scans = self.buttons['single_scans'].isChecked()
-        single_analyzers = self.buttons['single_analyzers'].isChecked()
-        subtract_background = self.buttons['subtract_background'].isChecked()
-        normalize = self.buttons['normalize'].isChecked()
-        scanning_type = self.buttons['scanning_type'].isChecked()
+            single_scans = self.buttons['single_scans'].isChecked()
+            single_analyzers = self.buttons['single_analyzers'].isChecked()
+            subtract_background = self.buttons['subtract_background'].isChecked()
+            normalize = self.buttons['normalize'].isChecked()
+            scanning_type = self.buttons['scanning_type'].isChecked()
 
-        if self.buttons['single_image'].isChecked():
-            single_image = self.master.get_selected_image_index()
-        else:
-            single_image = None
+            if self.buttons['single_image'].isChecked():
+                single_image = self.master.get_selected_image_index()
+            else:
+                single_image = None
 
-        analysis_result = experiment.get_spectrum()
+            analysis_result = experiment.get_spectrum()
 
 
 
-        # Plot current data:
-        self._plot(analysis_result, single_analyzers, single_scans,
-            scanning_type, subtract_background, normalize, single_image)
+            # Plot current data:
+            self._plot(analysis_result, single_analyzers, single_scans,
+                scanning_type, subtract_background, normalize, single_image)
 
 
         # # Plot ghosts
@@ -363,9 +363,9 @@ class SpectralPlot(QtGui.QWidget):
         # else:
         #     self.ghosts = []
 
-        # except Exception as e:
-        #     fmt = 'Plot update failed: {}'.format(e)
-        #     Log.error(fmt)
+        except Exception as e:
+            fmt = 'Plot update failed: {}'.format(e)
+            Log.error(fmt)
 
 
     def _plot(self, analysis_result, single_analyzers = True, single_scans = True,

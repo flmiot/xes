@@ -1,7 +1,8 @@
 # X-ray emission & HERFD data analysis tool (Win / Linux / macOS)
 
 ![alt text](https://github.com/flmiot/xes/blob/master/doc/screenshot.PNG)
-![alt text](https://github.com/flmiot/xes/blob/master/doc/screenshot2.PNG)
+
+![alt text2](https://github.com/flmiot/xes/blob/master/doc/screenshot2.PNG)
 
 ## Prerequisites
 -	Python 3.4 or higher

@@ -627,13 +627,27 @@ class Scan(object):
         # pattern = r'(\d+\.\d+)\s'*8+r'.*'+r'(\d+\.\d+)\s'*3
 
         # Before pin3 diode stopped working
+        fio_version = 1
         pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
-
-        #After pin3 diode stopped working
-        # pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
-
-
         matches = re.findall(pattern, content)
+
+        if len(matches) == 0:
+            fio_version = 2
+            #After pin3 diode stopped working
+            pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s*'*7 + r'None ' \
+                + r'([+-]*\d+\.\d+[e0-9-]*)\s*'*2
+            matches = re.findall(pattern, content)
+
+        if len(matches) == 0:
+            fio_version = 3
+            #After pin3 diode stopped working
+            pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
+            matches = re.findall(pattern, content)
+
+        print("Fio version: ", fio_version, ", Files: ", len(matches))
+
+
+
         enc_dcm_ener = [0]*len(matches)
         i01 = np.zeros(len(matches))
         i02 = np.zeros(len(matches))
@@ -642,20 +656,39 @@ class Scan(object):
 
         for ind, match in enumerate(matches):
 
-            # Before pin3 diode stopped working
-            _,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
 
-            #After pin3 diode stopped working
-            # _,_,_,e,i01str,tfystr,i02str,_,_ = match
+            if fio_version == 1:
+                # Before pin3 diode stopped working
+                _,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
+                enc_dcm_ener[ind] = float(e)
+                i01[ind] = float(i01str)
+                i02[ind] = float(i02str)
+                tfy[ind] = float(tfystr)
+                trans[ind] = float(transstr)
 
-            enc_dcm_ener[ind] = float(e)
-            i01[ind] = float(i01str)
-            i02[ind] = float(i02str)
-            tfy[ind] = float(tfystr)
-            # trans[ind] = float(transstr)
+                i0 = i02
+
+            elif fio_version == 2:
+                _,_,_,e,i01str,transstr,_,_,_ = match
+                enc_dcm_ener[ind] = float(e)
+                i01[ind] = float(i01str)
+                trans[ind] = float(transstr)
+
+                i0 = i01
+
+            elif fio_version == 3:
+                #After pin3 diode stopped working
+                 _,_,_,e,i01str,tfystr,i02str,_,_ = match
+                 enc_dcm_ener[ind] = float(e)
+                 i01[ind] = float(i01str)
+                 i02[ind] = float(i02str)
+                 tfy[ind] = float(tfystr)
+
+                 i0 = i02
+
 
         self.energies = enc_dcm_ener
-        self.monitor = i02
+        self.monitor = i0
 
         # plt.plot(pin2)
         # plt.show()

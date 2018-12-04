@@ -20,4 +20,4 @@ python gui.py [path/to/input_file.txt]
 - Manage numerous scans and analyzer (ROIs) at the same time. View them separately, overlayed or summed (via linear interpolation) 
 - Apply background subtraction by setting background ROIs. Appropiate background ROIs are automatically selected for each analyzer ROI (closest above and below)
 - Specify an elastic scan to calibrate the energy axis for each analyzer
-- Enable the automatic plotting-update to view and access changes (e.g ROI size) quickly
+- Enable the automatic plotting-update to view and access changes quickly (e.g ROI size) 

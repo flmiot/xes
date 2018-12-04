@@ -191,9 +191,13 @@ class SpectralPlot(QtGui.QWidget):
         self.plot.getPlotItem().addLegend()
         labelStyle = {'color': '#FFF', 'font-size': '10pt'}
         self.plot.getAxis('bottom').setLabel('Energy', units='eV', **labelStyle)
+        self.plot.getAxis('bottom').enableAutoSIPrefix(False)
         self.plot.getAxis('left').setLabel('Intensity', units='a.u.', **labelStyle)
+        self.plot.getAxis('left').enableAutoSIPrefix(False)
         layout.addWidget(self.plot)
         self.setLayout(layout)
+
+
 
         tb = QtGui.QToolBar(self)
         b = QtGui.QToolButton(self)

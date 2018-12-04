@@ -635,10 +635,10 @@ class Scan(object):
         # pattern = r'(\d+\.\d+)\s'*8+r'.*'+r'(\d+\.\d+)\s'*3
 
         # Before pin3 diode stopped working
-        # pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
+        pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
 
         #After pin3 diode stopped working
-        pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
+        # pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
 
 
         matches = re.findall(pattern, content)
@@ -651,10 +651,10 @@ class Scan(object):
         for ind, match in enumerate(matches):
 
             # Before pin3 diode stopped working
-            #_,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
+            _,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
 
             #After pin3 diode stopped working
-            _,_,_,e,i01str,tfystr,i02str,_,_ = match
+            # _,_,_,e,i01str,tfystr,i02str,_,_ = match
 
             enc_dcm_ener[ind] = float(e)
             i01[ind] = float(i01str)
@@ -980,11 +980,9 @@ class Calibration(object):
                 y.append(self._get_peak_position(np.arange(len(image)), image))
 
 
-        plt.ion()
-        plt.plot(x,y)
-        plt.show()
-
-        return lambda x : x
+        # Fit
+        p = np.poly1d(np.polyfit(y, x, 3))
+        return lambda x : p(x)
 
 
     def _get_peak_position(self, x, y, epsilon = 5):

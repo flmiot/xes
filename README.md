@@ -18,6 +18,7 @@ python gui.py [path/to/input_file.txt]
 
 ## Features:
 - Manage numerous scans and analyzer (ROIs) at the same time. View them separately, overlayed or summed (via linear interpolation) 
-- Apply background subtraction by setting background ROIs. Appropiate background ROIs are automatically selected for each analyzer ROI (closest above and below)
+- Apply background subtraction by setting background ROIs. Appropriate background ROIs are automatically selected for each analyzer ROI (closest above and below)
 - Specify an elastic scan to calibrate the energy axis for each analyzer
 - Enable the automatic plotting-update to view and access changes quickly (e.g ROI size) 
+- Switch to HERFD mode: Display emission data along the incoming energy axis and visualize XAS data which was taken in flourescence mode

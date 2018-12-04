@@ -87,7 +87,7 @@ class AnalyzerROI(pg.ROI):
         # self.addRotateHandle([0, 0], [0.5, 0.5])
 
         self.analyzer = Analyzer(name)
-        self.analyzer.set_mask([194, 486])
+        self.analyzer.set_mask( mask = [195, 487] )
         experiment.add_analyzer(self.analyzer)
         self.setToolTip(self.analyzer.name)
         monitor.add_analyzer_roi(self)

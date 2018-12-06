@@ -178,7 +178,7 @@ class BackgroundParameter(CustomParameter):
 
 
     def update(self, parameter):
-        self.roi.background_roi.active = self.child('Include').value()
+        self.roi.analyzer.active = self.child('Include').value()
         super(self.__class__, self).update(parameter)
 
 registerParameterType('backgroundRoi', BackgroundParameter, override=True)

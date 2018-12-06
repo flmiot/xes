@@ -255,19 +255,19 @@ class AnalysisResult(object):
         backgrounds     Array (S x A x P)
         """
 
-        energies_summed = np.empty((1, len(energies[0])), dtype = list)
-        intensities_summed = np.empty((1, len(energies[0])), dtype = list)
-        backgrounds_summed = np.empty((1, len(energies[0])), dtype = list)
+        n_analyzers = len(energies[0])
+        energies_summed = np.empty((1, n_analyzers), dtype = list)
+        intensities_summed = np.empty((1, n_analyzers), dtype = list)
+        backgrounds_summed = np.empty((1, n_analyzers), dtype = list)
 
         # Iterate over analyzers
-
-        z = zip(range(len(energies[0])), energies.T, intensities.T, backgrounds.T)
-
+        z = zip(range(n_analyzers), energies.T, intensities.T, backgrounds.T)
         for ind, energy, intensity, background in z:
             ce, ii, b = self._interpolate_and_sum(energy, intensity, background)
-            energies_summed.T[ind] = [ce]
-            intensities_summed.T[ind]  = [ii]
-            backgrounds_summed.T[ind]  = [b]
+
+            energies_summed.T[ind]      = [ce]
+            intensities_summed.T[ind]   = [ii]
+            backgrounds_summed.T[ind]   = [b]
 
         return energies_summed, intensities_summed, backgrounds_summed
 
@@ -644,7 +644,8 @@ class Scan(object):
             pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
             matches = re.findall(pattern, content)
 
-        print("Fio version: ", fio_version, ", Files: ", len(matches))
+        fmt = "Fio file version: {}, files: {}"
+        Log.debug(fmt.format(fio_version, len(matches))
 
 
 

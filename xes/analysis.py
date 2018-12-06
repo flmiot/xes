@@ -645,7 +645,7 @@ class Scan(object):
             matches = re.findall(pattern, content)
 
         fmt = "Fio file version: {}, files: {}"
-        Log.debug(fmt.format(fio_version, len(matches))
+        Log.debug(fmt.format(fio_version, len(matches)))
 
 
 
@@ -1000,9 +1000,12 @@ class Calibration(object):
             if np.max(image) < threshold:
                 continue
             else:
-                x.append(elastic_scan.energies[ind])
-                y.append(self._get_peak_position(np.arange(len(image)), image))
-
+                try:
+                    pp = self._get_peak_position(np.arange(len(image)), image)
+                    x.append(elastic_scan.energies[ind])
+                    y.append(pp)
+                except:
+                    continue
 
         # Fit
         p = np.poly1d(np.polyfit(y, x, 3))
@@ -1014,13 +1017,11 @@ class Calibration(object):
         x_lower = x_max - epsilon
         x_upper = x_max + epsilon
 
-        if x_lower < 0:
-            x_lower = 0
-        if x_upper >= len(y):
-            x_upper = len(y) - 1
+        if x_lower < 0 or x_upper >= len(y):
+            raise Exception("The peak seems to be to close to the edge!")
 
         x_cutout = np.arange(x_lower, x_upper+1)
-        y_cutout = y[x_lower:x_upper+1]
+        y_cutout = y[x_cutout]
 
         cumsum = np.cumsum(y_cutout)
         f = interp.interp1d(cumsum, x_cutout)

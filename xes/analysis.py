@@ -199,47 +199,6 @@ class AnalysisResult(object):
 
         return energies_summed, intensities_summed, backgrounds_summed
 
-        # shape = []
-        # for scan in intensities:
-        #     for analyzer in scan:
-        #         shape.append()
-        #
-        #
-        # # Iterate scans
-        # l = []
-        # for ind, label in enumerate(labels):
-        #
-        #
-        #
-        #     energy = energies[ind]
-        #     intensity = intensities[ind]
-        #     background = backgrounds[ind]
-        #
-        #     energy_summed = []
-        #     intensity_summed = []
-        #     background_summed = []
-        #
-        #     # Iterate images
-        #     for ei, ii, bi in zip(energy, intensity, background):
-        #
-        #         min_energy = np.max(list(e[0] for e in ei))
-        #         max_energy = np.min(list(e[-1] for e in ei))
-        #         points = np.max(list([len(e) for e in ei]))
-        #         ir = np.zeros(points, dtype = np.float)
-        #         ce = np.linspace(min_energy, max_energy, points)
-        #
-        #
-        #
-        #         energy_summed.append(ce)
-        #         intensity_summed.append(ir)
-        #         background_summed.append(points) # TODO: Wrong!
-        #
-        #     energies_summed.append(energy_summed)
-        #     intensities_summed.append(intensity_summed)
-        #     backgrounds_summed.append(backgrounds_summed)
-        #
-        # return  energies_summed, intensities_summed, backgrounds_summed
-
 
     def sum_scans(self, energies, intensities, backgrounds):
         """
@@ -270,43 +229,6 @@ class AnalysisResult(object):
             backgrounds_summed.T[ind]   = [b]
 
         return energies_summed, intensities_summed, backgrounds_summed
-
-        #     min_energy = np.max(list(e[0] for e in energy))
-        #     max_energy = np.min(list(e[-1] for e in intensity))
-        #     points = np.max(list([len(e) for e in intensity]))
-        #     ii = np.zeros(points, dtype = np.float)
-        #     ce = np.linspace(min_energy, max_energy, points)
-        #
-        #
-        # # Allocate memory
-        # points = np.max([len(energies[name][0]) for name in scan_names])
-        # types = [('Summed scans', '{}f4'.format(points))]
-        #
-        # ce = np.empty(len(energies), dtype=types)
-        # ii = np.zeros(len(energies), dtype=types)
-        # bi = np.zeros(len(energies), dtype=types)
-        #
-        # a = len(energies)
-        # z = zip(range(a), energies, intensities, backgrounds)
-        # for ind, energy, intensity, background in z:
-        #     min_energy = np.max([energy[name][0] for name in scan_names])
-        #     max_energy = np.min([energy[name][-1] for name in scanning_typescan_names])
-        #
-        #     ce['Summed scans'][ind] = \
-        #          np.linspace(min_energy, max_energy, points)
-        #
-        #     for name in scan_names:
-        #         e = energy[name]
-        #         i = intensity[name]
-        #         fi = interp.interp1d(e, i)
-        #         ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
-        #
-        #         if backgrounds is not None:
-        #             b = background[name]
-        #             fb = interp.interp1d(e,b)
-        #             bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
-        #
-        # return ce, ii, bi, l
 
 
     def _interpolate_and_sum(self, energy, intensity, background):
@@ -404,24 +326,6 @@ class Experiment(object):
         Log.debug(fmt)
         start = end
 
-        # e = np.array(e)
-        # i = np.array(i)
-        # b = np.array(b)
-
-        # if not single_analyzers:
-        #     try:
-        #         e_summed, i_summed, b_summed = self.sum_analyzers(e, i, b)
-        #         e, i, b = e_summed, i_summed, b_summed
-        #     except Exception as exception:
-        #         Log.error('Summing of analyzers failed: {}'.format(exception))
-        #
-        # if not single_scans:
-        #     try:
-        #         e_summed, i_summed, b_summed = self.sum_scans(e, i, b)
-        #         e, i, b = e_summed, i_summed, b_summed
-        #     except Exception as exception:
-        #         Log.error('Summing of scans failed: {}'.format(exception))
-
 
         end = time.time()
         fmt = "Spectra summed [Took {:2f} s]".format(end-start)
@@ -466,10 +370,6 @@ class Experiment(object):
         """Add a scan object. Specify scan and corresponding calibration.
         """
 
-        # for s in self.scans:
-        #     if s.name == scan.name:
-        #         raise ValueError('Scan could not be added to the experiment '\
-        #             'because the name already exists.')
 
         self.scans.append(scan)
         self.calibrations.append(calibration)
@@ -507,90 +407,7 @@ class Experiment(object):
 
         self.calibrations[self.scans.index(scan)] = calibration
 
-        #
-        # names = list([s.name for s in self.scans])
-        # if elastic_scan_name in names:
-        #     elastic_scan = self.scans[names.index(elastic_scan_name)]
-        # else:
-        #     raise ValueError("Unknown elastic scan requested.")
 
-
-
-
-    # def sum_analyzers(self, energies, intensities, backgrounds):
-    #     """
-    #     Interpolate spectra for multiple analyzers linearly and sum them
-    #     scan-wise.
-    #     """
-    #
-    #     scan_names = energies.dtype.names
-    #
-    #     # Allocate memory
-    #     types = []
-    #     for scan_name in scan_names:
-    #         points = np.max([len(e) for e in energies[scan_name]])
-    #         types.append((scan_name, '{}f4'.format(points)))
-    #
-    #     ce = np.empty(1, dtype = types)
-    #     ii = np.zeros(1, dtype = types)
-    #
-    #     for scan_name in scan_names:
-    #
-    #         scan_energies = energies[scan_name]
-    #         scan_intensities = intensities[scan_name]
-    #
-    #         min_energy = np.max(list(e[0] for e in scan_energies))
-    #         max_energy = np.min(list(e[-1] for e in scan_energies))
-    #         points = np.max(list([len(e) for e in scan_energies]))
-    #
-    #         ce[scan_name] = np.linspace(min_energy, max_energy, points)
-    #
-    #         a = len(energies)
-    #         z = zip(range(a), scan_energies, scan_intensities)
-    #         for ind,e,i in z:
-    #             fi = interp.interp1d(e, i)
-    #             ii[scan_name] += fi(ce[scan_name])
-    #
-    #     return ce, ii
-    #
-    #
-    # def sum_scans(self, energies, intensities, backgrounds):
-    #     """
-    #     Interpolate spectra for multiple scans linearly and sum them
-    #     analyzer-wise.
-    #     """
-    #
-    #     scan_names = energies.dtype.names
-    #
-    #     # Allocate memory
-    #     points = np.max([len(energies[name][0]) for name in scan_names])
-    #     types = [('Summed scans', '{}f4'.format(points))]
-    #
-    #     ce = np.empty(len(energies), dtype=types)
-    #     ii = np.zeros(len(energies), dtype=types)
-    #     bi = np.zeros(len(energies), dtype=types)
-    #
-    #     a = len(energies)
-    #     z = zip(range(a), energies, intensities, backgrounds)
-    #     for ind, energy, intensity, background in z:
-    #         min_energy = np.max([energy[name][0] for name in scan_names])
-    #         max_energy = np.min([energy[name][-1] for name in scan_names])
-    #
-    #         ce['Summed scans'][ind] = \
-    #             np.linspace(min_energy, max_energy, points)
-    #
-    #         for name in scan_names:
-    #             e = energy[name]
-    #             i = intensity[name]
-    #             fi = interp.interp1d(e, i)
-    #             ii['Summed scans'][ind] += fi(ce['Summed scans'][ind])
-    #
-    #             if backgrounds is not None:
-    #                 b = background[name]
-    #                 fb = interp.interp1d(e,b)
-    #                 bi['Summed scans'][ind] += fb(ce['Summed scans'][ind])
-    #
-    #     return ce, ii, bi
 
 
 class Scan(object):
@@ -1026,114 +843,3 @@ class Calibration(object):
         cumsum = np.cumsum(y_cutout)
         f = interp.interp1d(cumsum, x_cutout)
         return float(f(0.5*np.max(cumsum)))
-
-    # def register(self, analyzer):
-    #
-    #     if analyzer in self.analyzers:
-    #         raise Exception("Analyzer already registered for this calibration.")
-    #
-    #     self.analyzers.append(analyzer)
-    #     self.offsets.append(0.0)
-    #     self.calibrate(analyzer)
-    #     return self
-    #
-    #
-    # def set_main_analyzer(self, analyzer):
-    #     self.main_analyzer = analyzer
-    #     self.calibrate(analyzer)
-    #
-    #
-    # def get_e_axis(self, analyzer):
-    #     a = 1
-    #
-    #
-    # def calibrate(self, analyzer):
-    #     if analyzer is self.main_analyzer:
-    #         a = 1
-    #     else:
-    #         a = 1
-
-#
-# class BGModel(object):
-#     def __init__(self):
-#         """No of sample rows, No of sample columns"""
-#         self.name       = None
-#         self.scan       = None
-#         self.elastic    = None
-#         self.fits       = []
-#         self.window     = None
-#         self.guess      = None
-#         self.offset     = 0.0
-#
-#     def set_data(self, scan, elastic):
-#         self.scan = scan
-#         self.elastic = elastic
-#
-#     def set_voffset(self, offset):
-#         self.offset = offset
-#
-#     def set_window(self, window):
-#         self.window = window
-#
-#     def set_fitting_guess(self, guess):
-#         self.guess = guess
-#
-#     def get_background(self, x, analyzer):
-#         """
-#         Get the fitted background function evaluated for all values in
-#         array *e*. Will check if a fitting method was called before use.
-#         """
-#
-#         try:
-#             index = self.analyzers.index(analyzer)
-#             return self.fits[index](x) - self.offset
-#
-#         except:
-#             raise Exception('No fit available for this analyzer.')
-#
-#
-#     def fit(self, analyzers, method = 'pearson7'):
-#         """"""
-#         if self.scan is None:
-#             raise Exception('No reference data for this background model.')
-#
-#         self.analyzers = analyzers
-#         self.fits.clear()
-#
-#         # Set central energies for fit data
-#         self.elastic.center_analyzers(analyzers)
-#         e,i,_ = self.scan.get_energy_loss_spectrum(analyzers)
-#
-#         if method == 'pearson7':
-#             for x,y in zip(e,i):
-#                 f = self.fit_pearson7(x,y, fit_window = self.window)
-#                 self.fits.append(f)
-#
-#             fmt = 'Model fitting (method = pearson7) sucessful.'
-#             Log.debug(fmt)
-#         else:
-#             raise Exception('Unknown fitting method requested.')
-#
-#
-#     def fit_pearson7(self, x, y, fit_window = None):
-#         """"""
-#         if fit_window is None:
-#             x0,x1 = 0,len(x)
-#         else:
-#             x0 = np.argmin(np.abs(x - fit_window[0]))
-#             x1 = np.argmin(np.abs(x - fit_window[1]))
-#
-#         if self.guess is None:
-#             index = np.where(y == np.max(y[x0:x1]))[0]
-#             en_at_max = x[index]
-#             self.guess = [np.max(y[x0:x1]), 60, 1.18, en_at_max]
-#
-#         def _pearson7(x, imax, w,m, x0):
-#             return imax * w**(2*m) / (w**2+(2**(1/m)-1)*(x-x0)**2)**m
-#
-#         bv, _ = optim.curve_fit(_pearson7, x[x0:x1], y[x0:x1], p0=self.guess)
-#
-#         # plt.plot(_pearson7(x, *bv))
-#         # plt.show()
-#
-#         return lambda e : _pearson7(e, *bv)

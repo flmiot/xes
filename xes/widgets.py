@@ -406,92 +406,6 @@ class SpectralPlot(QtGui.QWidget):
                     self.plot.plot(single_e, single_b * fac,
                         pen = pens_bg[ind_s, ind_a])
 
-        # sh = [len(energies.dtype.names),len(energies)]
-        # if not single_scans:
-        #     sh = reversed(sh)
-        # colors = self._get_colors(*sh)
-        # all_analyzer_names = [a.name for a in experiment.analyzers]
-        # all_analyzer_names = list(all_analyzer_names)
-        # act_analyzer_names = [a.name for a in experiment.analyzers if a.active]
-        # act_analyzer_names = list(act_analyzer_names)
-        #
-        # # Plot analyzers:single_scans,
-        # z = zip(range(len(energies)), energies, intensities, backgrounds)
-        # for ind0, energy, intensity, background in z:
-        #     name = act_analyzer_names[ind0]
-        #     label0 = name if single_analyzers else "All"
-        #
-        #     # Plot scans
-        #     if single_scans:
-        #         for ind1, scan_name in enumerate(energy.dtype.names):
-        #             col = colors[ind1, ind0]
-        #
-        #             if subtract_background:
-        #                 # Plot data - background
-        #                 label = label0 + ' ({})*'.format(scan_name)
-        #                 pe, pi = energy[scan_name], intensity[scan_name]
-        #                 pb = background[scan_name]
-        #
-        #                 sub = pi-pb
-        #                 if normalize:
-        #                     sub, _ = self._normalize_curve(sub)
-        #
-        #                 self.plot.plot(pe,sub, pen=QtGui.QColor(*col), name=label)
-        #
-        #             else:
-        #                 # Plot data
-        #                 label = label0 + ' ({})'.format(scan_name)
-        #                 pe, pi = energy[scan_name], intensity[scan_name]
-        #
-        #                 if normalize:
-        #                     pi, fac = self._normalize_curve(pi)
-        #                 else:
-        #                     fac = 1.0
-        #
-        #                 self.plot.plot(pe,pi, pen=QtGui.QColor(*col), name=label)
-        #
-        #                 # Plot background if not all zeros
-        #                 pb = background[scan_name]
-        #                 if np.any(pb):
-        #                     pen = self._get_background_pen(col)
-        #                     self.plot.plot(pe,pb * fac, pen=pen)
-        #
-        #
-        #     else:
-        #         color_index = all_analyzer_names.index(name)
-        #         col = colors[color_index,0]single_scans,
-        #
-        #         scan_name = energy.dtype.names[0]
-        #
-        #         if subtract_background:
-        #             label0 += ' ({})*'.format(scan_name)
-        #             pe, pi = energy[scan_name], intensity[scan_name]
-        #             pb = background[scan_name]
-        #
-        #             sub = pi-pb
-        #
-        #             if normalize:
-        #                 sub, _ = self._normalize_curve(sub)
-        #
-        #             self.plot.plot(pe, sub, pen=QtGui.QColor(*col), name=label0)
-        #         else:
-        #             label0 += ' ({})'.format(scan_name)
-        #
-        #             # Plot data
-        #             pe, pi = energy[scan_name], intensity[scan_name]
-        #
-        #             if normalize:
-        #                 pi, fac = self._normalize_curve(pi)
-        #             else:
-        #                 fac = 1.0
-        #
-        #             self.plot.plot(pe,pi, pen=QtGui.QColor(*col), name=label0)
-        #
-        #             # Plot background if not all zero
-        #             pb = background[scan_name]
-        #             if np.any(pb):
-        #                 pen = self._get_background_pen(col)
-        #                 self.plot.plot(pe,pb * fac, pen=pen)
 
 
     def _get_pens(self, e, i, b, single_analyzers, single_scans):
@@ -529,17 +443,6 @@ class SpectralPlot(QtGui.QWidget):
             pens_bg.append(pens_scan_bg)
 
         return np.array(pens), np.array(pens_bg)
-
-
-        # colors = np.empty((no_of_scans, no_of_analyzers), dtype = '4i4')
-        #
-        # col = cm.rainbow(np.linspace(0,1.0,no_of_scans))
-        #
-        # for analyzer in range(no_of_analyzers):
-        #     blend = (no_of_analyzers-analyzer) / no_of_analyzers * 55 + 200
-        #     colors[:,analyzer] = col * blend
-        #
-        # return colors
 
 
     def _get_background_pen(self, color):

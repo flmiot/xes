@@ -15,7 +15,7 @@ conda install -c anaconda pyqtgraph
 
 To enter the GUI, just type
 ```
-python gui.py [path/to/input_file.txt]
+python gui.py 
 ```
 
 ## Features:

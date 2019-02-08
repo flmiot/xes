@@ -773,6 +773,7 @@ class Calibration(object):
         self.elastic_scan   = None
         self.analyzers      = []
         self.calibrations   = []
+        self.elastic_range  = []
 
 
     def get_energy_axis(self, analyzer):
@@ -785,16 +786,20 @@ class Calibration(object):
         return self.calibrations[self.analyzers.index(analyzer)](x)
 
 
-    def calibrate_energy_for_analyzers(self, analyzers, elastic_scan = None):
+    def calibrate_energy_for_analyzers(self, analyzers, elastic_scan = None,
+        elastic_range = None):
 
         if elastic_scan is None:
             elastic_scan = self.elastic_scan
+
+        if elastic_range is None:
+            elastic_range = self.elastic_range
 
         if not isinstance(elastic_scan, Scan):
             raise Exception("Elastic scan needs to be set before calibration!")
 
         for analyzer in analyzers:
-            c = self._calibrate(analyzer, elastic_scan)
+            c = self._calibrate(analyzer, elastic_scan, elastic_range)
             if analyzer in self.analyzers:
                 self.calibrations[self.analyzers.index(analyzer)] = c
             else:
@@ -803,26 +808,24 @@ class Calibration(object):
 
 
 
-    def _calibrate(self, analyzer, elastic_scan, detection_threshold = 0.5):
+    def _calibrate(self, analyzer, elastic_scan, elastic_range):
         mask = elastic_scan.images[0].shape
         x0,y0,x1,y1 = analyzer.get_roi(mask = mask)
-        images = np.sum(elastic_scan.images[:, y0:y1+1, x0:x1+1], axis = 1)
+        print(elastic_range)
+        r = range(*elastic_range)
+        images = np.sum(elastic_scan.images[r, y0:y1+1, x0:x1+1], axis = 1)
 
 
-        threshold = np.max(images[int(len(images) / 2)]) * detection_threshold
 
         x = []
         y = []
         for ind, image in enumerate(images):
-            if np.max(image) < threshold:
+            try:
+                pp = self._get_peak_position(np.arange(len(image)), image)
+                x.append(elastic_scan.energies[ind])
+                y.append(pp)
+            except:
                 continue
-            else:
-                try:
-                    pp = self._get_peak_position(np.arange(len(image)), image)
-                    x.append(elastic_scan.energies[ind])
-                    y.append(pp)
-                except:
-                    continue
 
         # Fit
         p = np.poly1d(np.polyfit(y, x, 3))

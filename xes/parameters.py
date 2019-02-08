@@ -1,3 +1,4 @@
+import re
 import logging
 
 import pyqtgraph as pg
@@ -191,8 +192,6 @@ class ScanParameter(CustomParameter):
     Include             Include this object in analysis
     Scanning type       Treat as scan (e.g. HERFD)
     Monitor: SUM        When displaying this object in monitor, sum all images
-    Offset (x)          Shift all images in x-direction
-    Offset (y)          Shift all images in y-direction
     ------------------  --------------------------------------------------
     """
 
@@ -205,6 +204,7 @@ class ScanParameter(CustomParameter):
         offset_x = opts['offset_x']
         offset_y = opts['offset_y']
         elastic = opts['elastic']
+        elastic_range = opts['elastic_range']
 
 
         experiment.add_scan(scan)
@@ -219,6 +219,7 @@ class ScanParameter(CustomParameter):
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
         c.append({'name': 'Elastic scan', 'type':'list', 'values': names,
             'value':elastic})
+        c.append({'name': 'Elastic range', 'type':'str', 'value': elastic_range})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
         # c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
@@ -240,10 +241,17 @@ class ScanParameter(CustomParameter):
 
         calibration = Calibration()
         elastic_name = self.child('Elastic scan').value()
+
+        print(self.child('Elastic range').value())
+        matches = re.findall(r'(\d+)', self.child('Elastic range').value())
+        print(matches)
+        elastic_range = list([int(d) for d in matches])
+        print(elastic_range)
         if elastic_name is not "None":
             ind = list([s.name for s in experiment.scans]).index(elastic_name)
             elastic_scan = experiment.scans[ind]
             calibration.elastic_scan = elastic_scan
+            calibration.elastic_range = elastic_range
 
         experiment.change_calibration(self.scan, calibration)
 
@@ -401,6 +409,7 @@ class ScanGroupParameter(CustomGroupParameter):
         opts['offset_x'] = offset_x
         opts['offset_y'] = offset_y
         opts['elastic'] = elastic
+        opts['elastic_range'] = '{},{}'.format(0, len(scan.files)-1)
 
         super(self.__class__, self).addNew(**opts)
         self.update_lists()

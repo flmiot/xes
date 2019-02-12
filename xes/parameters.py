@@ -245,13 +245,12 @@ class ScanParameter(CustomParameter):
         print(self.child('Elastic range').value())
         matches = re.findall(r'(\d+)', self.child('Elastic range').value())
         print(matches)
-        elastic_range = list([int(d) for d in matches])
-        print(elastic_range)
+        self.scan.range = list([int(d) for d in matches])
+        print(self.scan.range)
         if elastic_name is not "None":
             ind = list([s.name for s in experiment.scans]).index(elastic_name)
             elastic_scan = experiment.scans[ind]
             calibration.elastic_scan = elastic_scan
-            calibration.elastic_range = elastic_range
 
         experiment.change_calibration(self.scan, calibration)
 

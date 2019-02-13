@@ -692,6 +692,7 @@ class Analyzer(object):
         ii = np.empty(len(images), dtype = list)
         bg = np.zeros(len(images), dtype = list)
 
+
         for ind, image in enumerate(images):
             _, ii[ind] = self.get_signal(image)
             bg[ind] = self.get_background(image, background_rois)
@@ -804,18 +805,20 @@ class Calibration(object):
 
 
 
-    def _calibrate(self, analyzer, elastic_scan):
+    def _calibrate(self, analyzer, elastic_scan, detection_threshold = 0.5):
         mask = elastic_scan.images[0].shape
         x0,y0,x1,y1 = analyzer.get_roi(mask = mask)
         r = range(*elastic_scan.range)
         print(r)
         images = np.sum(elastic_scan.images[r, y0:y1+1, x0:x1+1], axis = 1)
-
-
+        threshold = np.max(images[int(len(images) / 2)]) * detection_threshold
 
         x = []
         y = []
         for ind, image in enumerate(images):
+            if np.max(image) < threshold:
+                continue
+
             try:
                 pp = self._get_peak_position(np.arange(len(image)), image)
                 x.append(elastic_scan.energies[ind])
@@ -825,6 +828,12 @@ class Calibration(object):
 
         # Fit
         p = np.poly1d(np.polyfit(y, x, 3))
+
+        # Control
+        plt.plot(y,x, 'ro')
+        plt.plot(y, p(y), 'b')
+        plt.show()
+
         return lambda x : p(x)
 
 

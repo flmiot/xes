@@ -92,14 +92,16 @@ class AnalysisResult(object):
         self.out_e          = []
         self.intensities    = []
         self.background     = []
+        self.fits           = []
         self.labels         = Label()
 
 
-    def add_data(self, in_e, out_e, intensity, background, label_dict):
+    def add_data(self, in_e, out_e, intensity, background, fit, label_dict):
         self.in_e.append(in_e)
         self.out_e.append(out_e)
         self.intensities.append(intensity)
         self.background.append(background)
+        self.fits.append(fit)
         self.labels.add_scan_labels(label_dict)
 
 
@@ -315,11 +317,11 @@ class Experiment(object):
                 fmt = "Energy calibration for scan {} failed: {}."
                 Log.error(fmt.format(scan.name, e))
 
-            in_e, out_e, inte, back = scan.get_energy_spectrum(active_analyzers,
+            in_e, out_e, inte, back, fit = scan.get_energy_spectrum(active_analyzers,
                 active_background_rois, calibration)
 
             d = {scan.name : list([a.name for a in active_analyzers])}
-            result.add_data(in_e, out_e, inte, back, d)
+            result.add_data(in_e, out_e, inte, back, fit, d)
 
         end = time.time()
         fmt = "Single spectra obtained [Took {:2f} s]".format(end-start)
@@ -555,21 +557,23 @@ class Scan(object):
         out_e = np.empty((len(analyzers)), dtype = list)
         intensity = np.empty((len(analyzers), len(in_e)), dtype = list)
         background = np.empty((len(analyzers), len(in_e)), dtype = list)
+        fits = np.empty((len(analyzers)), dtype = list)
 
         for ind, an in enumerate(analyzers):
-            b, s, bg = an.get_signal_series(images = self.images,
+            b, s, bg, fit = an.get_signal_series(images = self.images,
                 background_rois = background_rois,
                 calibration = calibration)
 
             out_e[ind] = b
             intensity[ind] = s
             background[ind] = bg
+            fits[ind] = fit
 
             # I0
             intensity[ind] /= self.monitor
             background[ind] /= self.monitor
 
-        return in_e, out_e, intensity, background
+        return in_e, out_e, intensity, background, fits
 
         # for ind, an in enumerate(analyzers):
         #     b, s = an.get_signal_series(images=self.images)
@@ -686,8 +690,9 @@ class Analyzer(object):
 
         if calibration is None:
             ea = np.arange(len(np.arange(x0, x1+1)))
+            fit = None
         else:
-            ea = calibration.get_energy_axis(self)
+            ea, fit = calibration.get_energy_axis(self)
 
         ii = np.empty(len(images), dtype = list)
         bg = np.zeros(len(images), dtype = list)
@@ -703,7 +708,7 @@ class Analyzer(object):
         fmt = "Returned signal series [Took {:2f} s]".format(end-start)
         Log.debug(fmt)
 
-        return ea, ii, bg
+        return ea, ii, bg, fit
 
     def clip_roi(self, roi, shape):
         x0, y0, x1, y1 = roi
@@ -775,6 +780,7 @@ class Calibration(object):
         self.elastic_scan   = None
         self.analyzers      = []
         self.calibrations   = []
+        self.fits           = []
 
 
     def get_energy_axis(self, analyzer):
@@ -784,7 +790,10 @@ class Calibration(object):
         x0, _, x1, _ = analyzer.get_roi()
         x = np.arange(x0, x1+1)
 
-        return self.calibrations[self.analyzers.index(analyzer)](x)
+        c = self.calibrations[self.analyzers.index(analyzer)](x)
+        fit = self.fits[self.analyzers.index(analyzer)]
+
+        return c, fit
 
 
     def calibrate_energy_for_analyzers(self, analyzers, elastic_scan = None):
@@ -796,12 +805,14 @@ class Calibration(object):
             raise Exception("Elastic scan needs to be set before calibration!")
 
         for analyzer in analyzers:
-            c = self._calibrate(analyzer, elastic_scan)
+            c, fit = self._calibrate(analyzer, elastic_scan)
             if analyzer in self.analyzers:
                 self.calibrations[self.analyzers.index(analyzer)] = c
+                self.fits[self.analyzers.index(analyzer)] = fit
             else:
                 self.analyzers.append(analyzer)
                 self.calibrations.append(c)
+                self.fits.append(fit)
 
 
 
@@ -809,7 +820,6 @@ class Calibration(object):
         mask = elastic_scan.images[0].shape
         x0,y0,x1,y1 = analyzer.get_roi(mask = mask)
         r = range(*elastic_scan.range)
-        print(r)
         images = np.sum(elastic_scan.images[r, y0:y1+1, x0:x1+1], axis = 1)
         threshold = np.max(images[int(len(images) / 2)]) * detection_threshold
 
@@ -830,11 +840,11 @@ class Calibration(object):
         p = np.poly1d(np.polyfit(y, x, 3))
 
         # Control
-        plt.plot(y,x, 'ro')
-        plt.plot(y, p(y), 'b')
-        plt.show()
+        # plt.plot(y,x, 'ro')
+        # plt.plot(y, p(y), 'b')
+        # plt.show()
 
-        return lambda x : p(x)
+        return lambda x : p(x), [y,x,p(y)]
 
 
     def _get_peak_position(self, x, y, epsilon = 5):

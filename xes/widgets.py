@@ -346,9 +346,14 @@ class SpectralPlot(QtGui.QWidget):
 
             analysis_result = experiment.get_spectrum()
 
+
             # Plot current data:
             self._plot(analysis_result, single_analyzers, single_scans,
                 scanning_type, subtract_background, normalize, single_image)
+
+            # Update diagnostics plots
+            diag = self.master.diagnostics
+            diag.update_energy_fit(analysis_result)
 
 
         # # Plot ghosts
@@ -474,6 +479,58 @@ class SpectralPlot(QtGui.QWidget):
 
 
 
+class DiagnosticsPlot(QtGui.QWidget):
+
+    def __init__(self, *args, master = None, **kwargs):
+        super(self.__class__, self).__init__(*args, **kwargs)
+        self.master = master
+        self.setup_ui()
+
+
+    def setup_ui(self):
+
+
+        self.plots = {}
+        self.labels = {}
+
+        layout = QtGui.QVBoxLayout()
+
+        # Elastic fit diagnostics
+        plot = pg.PlotWidget(background = None)
+        labelStyle = {'color': '#000', 'font-size': '7pt'}
+        plot.getAxis('bottom').setLabel('Pixel position', units='pixel', **labelStyle)
+        plot.getAxis('bottom').enableAutoSIPrefix(False)
+        plot.getAxis('left').setLabel('Energy', units='eV', **labelStyle)
+        plot.getAxis('left').enableAutoSIPrefix(False)
+        layout.addWidget(plot)
+        self.plots['elastic_fit'] = plot
+        self.setLayout(layout)
+
+        label = QtGui.QLabel()
+        label.setText('<font color="black">Energy calibration fits</font>')
+        self.labels['elastic_fit'] = label
+
+        layout.addWidget(label)
+        layout.addWidget(plot)
+
+
+
+    def update_energy_fit(self, analysis_result):
+        plot = self.plots['elastic_fit']
+        pi = plot.getPlotItem()
+        items = pi.listDataItems()
+        for item in items:
+            pi.removeItem(item)
+
+        fits = analysis_result.fits
+
+        for fit in fits:
+            for x, y_data, y_fit in fit:
+                plot.plot(x, y_data, pen = None, name = 'Data', symbol='o')
+                pen = pg.mkPen(color=[0,0,255], style=QtCore.Qt.DashLine)
+                plot.plot(x, y_fit, pen = pen, name = 'Fit')
+
+
 class XSMainWindow(QtGui.QMainWindow):
     def __init__(self):
         super(self.__class__, self).__init__()
@@ -509,7 +566,8 @@ class XSMainWindow(QtGui.QMainWindow):
         docks['scans'] = QtGui.QDockWidget("Scan objects", self)
         docks['analyzer'] = QtGui.QDockWidget("Analyzers", self)
         docks['background'] = QtGui.QDockWidget("Background ROIs", self)
-        docks['monitor'] = QtGui.QDockWidget('Monitor',self)
+        docks['diagnostics'] = QtGui.QDockWidget("Diagnostics", self)
+        docks['monitor'] = QtGui.QDockWidget('Monitor', self)
         docks['spectrum'] = QtGui.QDockWidget('Energy spectrum',self)
         # docks['herfd'] = QtGui.QDockWidget('HERFD',self)
 
@@ -523,9 +581,14 @@ class XSMainWindow(QtGui.QMainWindow):
         docks['monitor'].setWidget(self.monitor)
         docks['monitor'].widget().setMinimumSize(QtCore.QSize(400,300))
 
+        self.diagnostics = DiagnosticsPlot(master = self)
+        docks['diagnostics'].setWidget(self.diagnostics)
+        docks['diagnostics'].widget().setMinimumSize(QtCore.QSize(400,100))
+
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['scans'])
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['analyzer'])
         self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['background'])
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, docks['diagnostics'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['monitor'])
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['spectrum'])
         # self.addDockWidget(QtCore.Qt.RightDockWidgetArea, docks['herfd'])

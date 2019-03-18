@@ -525,6 +525,9 @@ class DiagnosticsPlot(QtGui.QWidget):
         fits = analysis_result.fits
 
         for fit in fits:
+            if fit is None:
+                continue
+                
             for x, y_data, y_fit in fit:
                 plot.plot(x, y_data, pen = None, name = 'Data', symbol='o')
                 pen = pg.mkPen(color=[0,0,255], style=QtCore.Qt.DashLine)

@@ -144,7 +144,6 @@ class AnalysisResult(object):
                     ei[ind_s, ind_a] = np.array(in_e[ind_s])
 
         else:
-
             ii = []
             bi = []
 
@@ -274,13 +273,6 @@ class Experiment(object):
     def get_spectrum(self):
 
         """
-        Get an energy spectrum. This method will return three arrays, one with
-        energy axes, one with corresponding spectra and one with backgrounds. If
-        *single_analyzers* is set to False, sum over all analyzers with property
-        'active' set to True (see *Analyzer* class). If *single_scans* is set to
-        False, sum over all scans with property 'active' set to True (see *Scan*
-        class). Returned arrays will contain just one energy axis and one
-        spectrum if both *single_analyzers* and *single_scans* are set to False.
         """
 
 
@@ -332,6 +324,8 @@ class Experiment(object):
         end = time.time()
         fmt = "Spectra summed [Took {:2f} s]".format(end-start)
         Log.debug(fmt)
+
+
 
         return result
 
@@ -432,12 +426,32 @@ class Scan(object):
 
     @property
     def images(self):
-        return self.__images
+        return self.__images[slice(*self.range)]
+
+
+    @property
+    def energies(self):
+        return self.__energies[slice(*self.range)]
+
+
+    @property
+    def monitor(self):
+        return self.__monitor[slice(*self.range)]
 
 
     @images.setter
     def images(self, images):
         self.__images = images
+
+
+    @energies.setter
+    def energies(self, energies):
+        self.__energies = energies
+
+
+    @monitor.setter
+    def monitor(self, monitor):
+        self.__monitor = monitor
 
 
     def read_logfile(self):
@@ -819,8 +833,8 @@ class Calibration(object):
     def _calibrate(self, analyzer, elastic_scan, detection_threshold = 0.5):
         mask = elastic_scan.images[0].shape
         x0,y0,x1,y1 = analyzer.get_roi(mask = mask)
-        r = range(*elastic_scan.range)
-        images = np.sum(elastic_scan.images[r, y0:y1+1, x0:x1+1], axis = 1)
+        # r = range(*elastic_scan.range)
+        images = np.sum(elastic_scan.images[:, y0:y1+1, x0:x1+1], axis = 1)
         threshold = np.max(images[int(len(images) / 2)]) * detection_threshold
 
         x = []

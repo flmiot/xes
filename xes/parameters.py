@@ -219,7 +219,7 @@ class ScanParameter(CustomParameter):
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
         c.append({'name': 'Elastic scan', 'type':'list', 'values': names,
             'value':elastic})
-        c.append({'name': 'Elastic range', 'type':'str', 'value': elastic_range})
+        c.append({'name': 'Range', 'type':'str', 'value': elastic_range})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
         # c.append({'name': 'Offset (x)', 'type':'int', 'value':offset_x})
@@ -242,11 +242,10 @@ class ScanParameter(CustomParameter):
         calibration = Calibration()
         elastic_name = self.child('Elastic scan').value()
 
-        print(self.child('Elastic range').value())
-        matches = re.findall(r'(\d+)', self.child('Elastic range').value())
-        print(matches)
+        # print(self.child('Elastic range').value())
+        matches = re.findall(r'(\d+)', self.child('Range').value())
         self.scan.range = list([int(d) for d in matches])
-        print(self.scan.range)
+        self.scan.range[1] += 1
         if elastic_name is not "None":
             ind = list([s.name for s in experiment.scans]).index(elastic_name)
             elastic_scan = experiment.scans[ind]

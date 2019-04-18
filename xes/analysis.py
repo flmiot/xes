@@ -533,6 +533,10 @@ class Scan(object):
 
         self.images = np.empty(len(self.energies), dtype = '(195,487)i4')
         for ind, filename in enumerate(self.files):
+
+
+
+
             self.images[ind] = tiff.imread(filename)
 
             if callback is not None:
@@ -544,6 +548,10 @@ class Scan(object):
         # arr = np.sum(arr, axis = 0)
         # plt.imshow(np.log(arr))
         # plt.show()
+
+    def read_hdf5files(self, callback = None):
+        self.images = np.empty(len(self.energies), dtype = '(255,1024)i4')
+        path = '/INSTRUMENT/FXE_XAD_GEC/CAM/CAMERA:daqOutput/data/image/pixels'
 
 
     def save_scan(self, path, analyzers):

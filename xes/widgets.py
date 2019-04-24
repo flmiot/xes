@@ -527,7 +527,7 @@ class DiagnosticsPlot(QtGui.QWidget):
         for fit in fits:
             if fit is None:
                 continue
-                
+
             for x, y_data, y_fit in fit:
                 plot.plot(x, y_data, pen = None, name = 'Data', symbol='o')
                 pen = pg.mkPen(color=[0,0,255], style=QtCore.Qt.DashLine)
@@ -746,24 +746,26 @@ class XSMainWindow(QtGui.QMainWindow):
             self.par.addNew(scan = scan)
 
     def _read_scan(self, path):
-        img_path = os.path.join(path, 'pilatus_100k')
-        files = sorted(list([os.path.join(img_path,f) for f in os.listdir(img_path)]))
+
+        #img_path = os.path.join(path, 'pilatus_100k')
+        img_path = path
+        files = list([os.path.join(img_path,f) for f in sorted(os.listdir(img_path))])
 
         # self.statusBar.showMessage('BUSY... Please wait.', 30000)
 
         Log.debug("Reading {} ...".format(path))
         # try to find logfile
         _, scan_name = os.path.split(path)
+
         log_file = scan_name + '.fio'
         test_path = os.path.join(path, log_file)
-        if not os.path.isfile(test_path):
-            # Check higher directory
-            test_path = os.path.join(os.path.split(path)[0], log_file)
-            if not os.path.isfile(test_path):
-                fmt = "Unable to read scan {}. Logfile (*.fio) not found!"
-                Log.error(fmt.format(path))
-                return
-
+        # if not os.path.isfile(test_path):
+        #     # Check higher directory
+        #     test_path = os.path.join(os.path.split(path)[0], log_file)
+        #     if not os.path.isfile(test_path):
+        #         fmt = "Unable to read scan {}. Logfile (*.fio) not found!"
+        #         Log.error(fmt.format(path))
+        #         return
 
         s = Scan(log_file = test_path, image_files = files)
 
@@ -909,7 +911,7 @@ class QThread_Loader(QtCore.QThread):
 
     def run(self):
         Log.info("Loading scan {}, please wait...".format(self.scan.name))
-        self.scan.read_logfile()
-        self.scan.read_files(self.imageLoaded.emit)
+        self.scan.read_logfile_gec()
+        self.scan.read_files_gec(self.imageLoaded.emit)
         n = len(self.scan.images)
         self.taskFinished.emit(n)

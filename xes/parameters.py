@@ -244,8 +244,8 @@ class ScanParameter(CustomParameter):
 
         # print(self.child('Elastic range').value())
         matches = re.findall(r'(\d+)', self.child('Range').value())
-        self.scan.range = list([int(d) for d in matches])
-        self.scan.range[1] += 1
+        #self.scan.range = list([int(d) for d in matches])
+        #self.scan.range[1] += 1
         if elastic_name is not "None":
             ind = list([s.name for s in experiment.scans]).index(elastic_name)
             elastic_scan = experiment.scans[ind]

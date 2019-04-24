@@ -2,6 +2,7 @@ import os
 import re
 # import imageio
 import tifffile as tiff
+import h5py
 import pdb
 import time
 import numpy as np
@@ -15,6 +16,8 @@ import matplotlib.pyplot as plt # For debugging
 
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
+
+GEC = True
 
 
 
@@ -254,9 +257,10 @@ class AnalysisResult(object):
 
 
 class Experiment(object):
-    """An Experiment holds a set of analyzers for a number of scans. For each
-    scan, summed spectra can be obtained by calling the *get_spectrum()* method.
-    The returned spectra can be summed over all active analyzers (property
+    """
+    An Experiment holds a set of analyzers for a number of scans. For each scan,
+    summed spectra can be obtained by calling the *get_spectrum()* method. The
+    returned spectra can be summed over all active analyzers (property
     'active' of each analyzer). Additionally, all scans can be summed for which
     the 'active' property was set to true (see *Scan* class).
     """
@@ -421,7 +425,7 @@ class Scan(object):
         # self.bg_model     = None
         self.loaded         = False
         self.offset         = [0,0]
-        self.range          = [0, len(image_files)]
+        self.range          = [0, None]
 
 
     @property
@@ -525,18 +529,32 @@ class Scan(object):
         self.energies = enc_dcm_ener
         self.monitor = i0
 
+
+        # plt.plot(pin2)
+        # plt.show()
+
+
+    def read_logfile_gec(self):
+
+        trains = []
+        for ind, filename in enumerate(self.files):
+            with h5py.File(filename, 'r') as file:
+                t = file['/INSTRUMENT/FXE_XAD_GEC/CAM/CAMERA:daqOutput/data/trainId'].value
+                trains.extend(t[np.where(t > 0)[0]].tolist())
+
+        self.energies = trains
+        self.monitor = np.ones(len(trains))
+
+
         # plt.plot(pin2)
         # plt.show()
 
 
     def read_files(self, callback = None):
+        """Read Pilatus 100K image files"""
 
         self.images = np.empty(len(self.energies), dtype = '(195,487)i4')
         for ind, filename in enumerate(self.files):
-
-
-
-
             self.images[ind] = tiff.imread(filename)
 
             if callback is not None:
@@ -544,14 +562,31 @@ class Scan(object):
 
         self.loaded = True
 
+
+    def read_files_gec(self, callback = None):
+        """Read GreatEyes image files"""
+
+        self.images = np.empty(len(self.energies), dtype = '(255,1024)i4')
+        path = '/INSTRUMENT/FXE_XAD_GEC/CAM/CAMERA:daqOutput/data/image/pixels'
+        file_index = 0
+
+        for ind, filename in enumerate(self.files):
+            with h5py.File(filename, 'r') as file:
+                t = file['/INSTRUMENT/FXE_XAD_GEC/CAM/CAMERA:daqOutput/data/trainId'].value
+                pix = file[path].value
+                pix = pix[np.where(t > 0)[0], :, :]
+                self.images[file_index : file_index + pix.shape[0]] = pix
+                file_index += pix.shape[0]
+
+                if callback is not None:
+                    callback(file_index)
+
+        self.loaded = True
+
         # arr = np.array(self.images)
         # arr = np.sum(arr, axis = 0)
         # plt.imshow(np.log(arr))
         # plt.show()
-
-    def read_hdf5files(self, callback = None):
-        self.images = np.empty(len(self.energies), dtype = '(255,1024)i4')
-        path = '/INSTRUMENT/FXE_XAD_GEC/CAM/CAMERA:daqOutput/data/image/pixels'
 
 
     def save_scan(self, path, analyzers):
@@ -790,10 +825,6 @@ class Analyzer(object):
         # plt.plot(bg)
         # plt.show()
         return bg[x0:x1+1]
-
-
-
-
 
 
 class Calibration(object):

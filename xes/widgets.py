@@ -7,6 +7,7 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.parametertree import Parameter, ParameterTree, parameterTypes
 
+
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 
@@ -187,9 +188,9 @@ class SpectralPlot(QtGui.QWidget):
         self.setPalette(p)
 
         layout = QtGui.QVBoxLayout()
-        self.plot = pg.PlotWidget()
+        self.plot = pg.PlotWidget(background = 'w')
         self.plot.getPlotItem().addLegend()
-        labelStyle = {'color': '#FFF', 'font-size': '10pt'}
+        labelStyle = {'color': '#000', 'font-size': '10pt'}
         self.plot.getAxis('bottom').setLabel('Energy', units='eV', **labelStyle)
         self.plot.getAxis('bottom').enableAutoSIPrefix(False)
         self.plot.getAxis('left').setLabel('Intensity', units='a.u.', **labelStyle)
@@ -418,21 +419,21 @@ class SpectralPlot(QtGui.QWidget):
         no_analyzers = len(e[0])
 
         if single_analyzers and single_scans:
-            shades = cm.rainbow(np.linspace(0,1.0, no_scans))
+            shades = cm.gist_rainbow(np.linspace(0,1.0, no_scans))
             colors = np.tile(shades, (no_analyzers, 1, 1))
             colors = np.transpose(colors, (1,0,2))
 
         elif single_analyzers and not single_scans:
-            shades = cm.rainbow(np.linspace(0, 1.0, no_analyzers))
+            shades = cm.gist_rainbow(np.linspace(0, 1.0, no_analyzers))
             colors = np.tile(shades, (1,1,1))
 
         elif not single_analyzers and single_scans:
-            shades = cm.rainbow(np.linspace(0,1.0, no_scans))
+            shades = cm.gist_rainbow(np.linspace(0,1.0, no_scans))
             colors = np.tile(shades, (1, 1, 1))
             colors = np.transpose(colors, (1,0,2))
 
         else:
-            shades = cm.rainbow(np.linspace(0,1.0, 1))
+            shades = cm.gist_rainbow(np.linspace(0,1.0, 1))
             colors = np.tile(shades, (1,1,1))
 
         pens = []
@@ -733,7 +734,8 @@ class XSMainWindow(QtGui.QMainWindow):
     def action_read_scan(self):
         try:
 
-            path = str(QtGui.QFileDialog.getExistingDirectory(self, "Select Folder"))
+            #path = str(QtGui.QFileDialog.getExistingDirectory(self, "Select Folder"))
+            path = str(QtGui.QFileDialog.getOpenFileName(self, 'Select "*.FIO" file')[0])    
             return self._read_scan(path)
 
         except Exception as e:
@@ -746,26 +748,34 @@ class XSMainWindow(QtGui.QMainWindow):
             self.par.addNew(scan = scan)
 
     def _read_scan(self, path):
-        img_path = os.path.join(path, 'pilatus_100k')
-        files = sorted(list([os.path.join(img_path,f) for f in os.listdir(img_path)]))
+        matches = re.findall(r'.?\_(\d{5})\.FIO', os.path.split(path)[1])
+        scan_no = matches[0]
+        #img_path = os.path.join(path, 'pilatus_100k')
+        img_path = os.path.split(path)[0]
+        file_names = os.listdir(img_path)
+        file_names = [f for f in file_names if scan_no in f and "tif" in f]
+        files = sorted(list([os.path.join(img_path,f) for f in file_names]))
+        print(files)
+        
+        files = [f for f in files if scan_no in f]
 
         # self.statusBar.showMessage('BUSY... Please wait.', 30000)
 
         Log.debug("Reading {} ...".format(path))
         # try to find logfile
-        _, scan_name = os.path.split(path)
-        log_file = scan_name + '.fio'
-        test_path = os.path.join(path, log_file)
-        if not os.path.isfile(test_path):
-            # Check higher directory
-            test_path = os.path.join(os.path.split(path)[0], log_file)
-            if not os.path.isfile(test_path):
-                fmt = "Unable to read scan {}. Logfile (*.fio) not found!"
-                Log.error(fmt.format(path))
-                return
+        #_, scan_name = os.path.split(path)
+        #log_file = scan_name + '.fio'
+        #test_path = os.path.join(path, log_file)
+#        if not os.path.isfile(test_path):
+#            # Check higher directory
+#            test_path = os.path.join(os.path.split(path)[0], log_file)
+#            if not os.path.isfile(test_path):
+#                fmt = "Unable to read scan {}. Logfile (*.fio) not found!"
+#                Log.error(fmt.format(path))
+#                return
 
 
-        s = Scan(log_file = test_path, image_files = files)
+        s = Scan(log_file = path, image_files = files)
 
         loader = QThread_Loader(s)
         self.threads.append(loader)

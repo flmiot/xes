@@ -462,21 +462,9 @@ class Scan(object):
 
         # Before pin3 diode stopped working
         fio_version = 1
-        pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*14
+        pattern = r'\s*([+-]*\d+\.*\d*[e0-9-+]*)\s'*17
         matches = re.findall(pattern, content)
-
-        if len(matches) == 0:
-            fio_version = 2
-            #After pin3 diode stopped working
-            pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s*'*7 + r'None ' \
-                + r'([+-]*\d+\.\d+[e0-9-]*)\s*'*2
-            matches = re.findall(pattern, content)
-
-        if len(matches) == 0:
-            fio_version = 3
-            #After pin3 diode stopped working
-            pattern = r'([+-]*\d+\.\d+[e0-9-]*)\s'*9
-            matches = re.findall(pattern, content)
+    
 
         fmt = "Fio file version: {}, files: {}"
         Log.debug(fmt.format(fio_version, len(matches)))
@@ -494,32 +482,13 @@ class Scan(object):
 
             if fio_version == 1:
                 # Before pin3 diode stopped working
-                _,_,_,e,i01str,tfystr,transstr,i02str,_,_,_,_,_,_ = match
+                e, _, _, i01str, _ ,tfystr, _, _, _, _, _, _, _, _, _, _, _ = match
                 enc_dcm_ener[ind] = float(e)
                 i01[ind] = float(i01str)
-                i02[ind] = float(i02str)
                 tfy[ind] = float(tfystr)
-                trans[ind] = float(transstr)
-
-                i0 = i02
-
-            elif fio_version == 2:
-                _,_,_,e,i01str,transstr,_,_,_ = match
-                enc_dcm_ener[ind] = float(e)
-                i01[ind] = float(i01str)
-                trans[ind] = float(transstr)
+                #trans[ind] = float(transstr)
 
                 i0 = i01
-
-            elif fio_version == 3:
-                #After pin3 diode stopped working
-                 _,_,_,e,i01str,tfystr,i02str,_,_ = match
-                 enc_dcm_ener[ind] = float(e)
-                 i01[ind] = float(i01str)
-                 i02[ind] = float(i02str)
-                 tfy[ind] = float(tfystr)
-
-                 i0 = i02
 
 
         self.energies = enc_dcm_ener

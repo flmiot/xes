@@ -1,7 +1,6 @@
 import sys
 from pyqtgraph.Qt import QtCore, QtGui
 
-from xes import experiment
 from xes.widgets import XSMainWindow
 
 if __name__ == '__main__':

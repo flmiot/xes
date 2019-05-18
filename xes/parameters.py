@@ -15,6 +15,13 @@ class CustomParameterItem(parameterTypes.GroupParameterItem):
     def __init__(self, *args, **kwargs):
         self.toplevel_color = QtGui.QColor(214, 239, 255)
         super(self.__class__, self).__init__(*args, **kwargs)
+        self.contextMenu.addAction("Get snippet").triggered.connect(self.snippet)
+
+    def snippet(self):
+        self.param.snippet()
+
+    def contextMenuEvent(self, ev):
+        self.contextMenu.popup(ev.globalPos())
 
 
     def selected(self, sel):
@@ -48,6 +55,7 @@ class CustomParameter(parameterTypes.GroupParameter):
     itemClass       = CustomParameterItem
     sigItemSelected = QtCore.Signal(object)
     sigUpdate       = QtCore.Signal(object)
+    sigSnippet      = QtCore.Signal(object)
 
 
     def __init__(self, **opts):
@@ -71,6 +79,18 @@ class CustomParameter(parameterTypes.GroupParameter):
             c.setLimits(list_content)
             c.opts['value'] = value
             c.sigValueChanged.emit(c, value) # c.setValue(...) does not work fsr
+
+
+    def snippet(self, snippet_dict = None):
+        """Called from inherited class"""
+        if snippet_dict is not None:
+            content = ''
+            for property in snippet_dict['properties']:
+                value = snippet_dict['properties'][property]
+                content +='\n\t{}={}'.format(property, value)
+
+            fmt = '{}({}\n)'.format(snippet_dict['property_name'], content)
+            self.sigSnippet.emit(fmt)
 
 
 class AnalyzerROI(pg.ROI):
@@ -137,6 +157,20 @@ class AnalyzerParameter(CustomParameter):
         # d['Energy calibration'] = list([c.name for c in experiment.calibrations])
         super(self.__class__, self).update_lists(d)
 
+
+    def snippet(self):
+        snippet_dict = {
+            'property_name' : 'analyzer',
+            'properties'    : {
+            	'include'      : self.child('Include').value(),
+            	'position-x'   : self.roi.pos()[0],
+            	'position-y'   : self.roi.pos()[1],
+            	'width'        : self.roi.size()[1],
+            	'height'       : self.roi.size()[0]
+                }
+        	}
+        super(self.__class__, self).snippet(snippet_dict)
+
 registerParameterType('analyzer', AnalyzerParameter, override=True)
 
 
@@ -181,6 +215,20 @@ class BackgroundParameter(CustomParameter):
     def update(self, parameter):
         self.roi.analyzer.active = self.child('Include').value()
         super(self.__class__, self).update(parameter)
+
+
+    def snippet(self):
+        snippet_dict = {
+            'property_name' : 'background',
+            'properties'    : {
+            	'include'      : self.child('Include').value(),
+            	'position-x'   : self.roi.pos()[0],
+            	'position-y'   : self.roi.pos()[1],
+            	'width'        : self.roi.size()[1],
+            	'height'       : self.roi.size()[0]
+                }
+        	}
+        super(self.__class__, self).snippet(snippet_dict)
 
 registerParameterType('backgroundRoi', BackgroundParameter, override=True)
 
@@ -244,9 +292,11 @@ class ScanParameter(CustomParameter):
 
         # print(self.child('Elastic range').value())
         matches = re.findall(r'(\d+)', self.child('Range').value())
-        self.scan.range = list([int(d) for d in matches])
-        self.scan.range[1] += 1
-        if elastic_name is not "None":
+        if self.scan.loaded:
+            self.scan.range = list([int(d) for d in matches])
+            self.scan.range[1] += 1
+
+        if elastic_name != "None":
             ind = list([s.name for s in experiment.scans]).index(elastic_name)
             elastic_scan = experiment.scans[ind]
             calibration.elastic_scan = elastic_scan
@@ -281,6 +331,20 @@ class ScanParameter(CustomParameter):
         # l.extend(list([b.name for b in experiment.bg_models]))
         # d['Background model'] = l
         super(self.__class__, self).update_lists(d)
+
+
+    def snippet(self):
+        snippet_dict = {
+            'property_name' : 'scan',
+            'properties'    : {
+            	'path'         : self.scan.log_file,
+            	'include'      : self.child('Include').value(),
+            	'elastic-scan' : self.child('Elastic scan').value(),
+            	'monitor-sum'  : self.child('Monitor: SUM').value(),
+            	'range'        : self.child('Range').value()
+                }
+        	}
+        super(self.__class__, self).snippet(snippet_dict)
 
 registerParameterType('scan', ScanParameter, override=True)
 
@@ -318,6 +382,7 @@ class CustomGroupParameter(parameterTypes.GroupParameter):
 
     sigUpdate = QtCore.Signal(object)
     sigItemSelected = QtCore.Signal(object)
+    sigSnippet      = QtCore.Signal(object)
 
     def __init__(self, **opts):
         opts['name'] = 'params'
@@ -349,10 +414,15 @@ class CustomGroupParameter(parameterTypes.GroupParameter):
         for child in self.children():
             child.sigUpdate.connect(self.update)
             child.sigItemSelected.connect(self.update)
+            child.sigSnippet.connect(self.snippet)
 
 
     def update(self, parameter):
         self.sigUpdate.emit(parameter)
+
+
+    def snippet(self, object):
+        self.sigSnippet.emit(object)
 
 
 class AnalyzerGroupParameter(CustomGroupParameter):
@@ -385,7 +455,7 @@ class ScanGroupParameter(CustomGroupParameter):
 
 
     def addNew(self, scan = None, include = True, scanning_type = False,
-        monitor_sum = True, elastic = "None", offset_x = 0, offset_y = 0):
+        monitor_sum = True, elastic = "None", offset_x = 0, offset_y = 0, range = None):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
         provided (i.e. scan = None).
@@ -398,6 +468,9 @@ class ScanGroupParameter(CustomGroupParameter):
         if scan is None:
             return
 
+        if range is None:
+            range = '{},{}'.format(0, len(scan.files)-1)
+
         opts = {}
         opts['scan'] = scan
         opts['name'] = scan.name
@@ -407,7 +480,7 @@ class ScanGroupParameter(CustomGroupParameter):
         opts['offset_x'] = offset_x
         opts['offset_y'] = offset_y
         opts['elastic'] = elastic
-        opts['elastic_range'] = '{},{}'.format(0, len(scan.files)-1)
+        opts['elastic_range'] = range
 
         super(self.__class__, self).addNew(**opts)
         self.update_lists()

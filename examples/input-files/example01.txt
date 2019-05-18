@@ -1,41 +1,33 @@
 ! SCANS
 scan(
-	path='H:\raw\alignment_00887',
-	include=False,
-	elastic-scan='alignment_00887',
-	monitor-sum=True,
-	model='None'
-	)
-scan(
-	path='H:\raw\alignment_00888',
-	include=True,
-	elastic-scan='alignment_00887',
-	monitor-sum=True,
-	model='Model 1'
-	)
+	path=C:\Users\hambu\Desktop\run08_19_xes_otte_local\run08_19_00153.FIO
+	include=True
+	elastic-scan=None
+	monitor-sum=True
+	range=0 19
+)
 
 ! ANALYZERS
 analyzer(
-	include=True,
-	position-x = 80,
-	position-y= 80,
-	width = 100,
-	height = 50,
-	angle = 45,
-	pixel-wise=False,
-	energy-offset=45.9
-	)
-	
+	include=True
+	position-x=0.5603241766290523
+	position-y=124.72604679956851
+	width=18.564483257722145
+	height=486.7698785662105
+)
 
-! MODELS
-model(
-	reference-data='alignment_00888',
-	window-start=95,
-	window-end=450,
-	vertical-offset=0
-	)
-	
+!BACKGROUNDS
+background(
+	include=True
+	position-x=0.3336168486076758
+	position-y=143.05427169934237
+	width=17.968154626356693
+	height=486.7698785662105
+)
+		
 ! PLOT
 ! NORMALIZE
+! SUBTRACT_BACKGROUND
+! AUTO
 
 	

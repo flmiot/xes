@@ -528,7 +528,7 @@ class DiagnosticsPlot(QtGui.QWidget):
         for fit in fits:
             if fit is None:
                 continue
-                
+
             for x, y_data, y_fit in fit:
                 plot.plot(x, y_data, pen = None, name = 'Data', symbol='o')
                 pen = pg.mkPen(color=[0,0,255], style=QtCore.Qt.DashLine)
@@ -603,6 +603,7 @@ class XSMainWindow(QtGui.QMainWindow):
         par = Parameter.create(type='scanGroup', child_type='scan', gui=self)
         self.scan_tree.setParameters(par, showTop=False)
         par.sigUpdate.connect(self.scan_tree_handler)
+        par.sigSnippet.connect(self.view_snippet)
         self.actionAddScan = QtGui.QAction(('Add new scan object'), self)
         self.actionAddScan.setShortcut(QtGui.QKeySequence("Ctrl+S"))
         self.addAction(self.actionAddScan)
@@ -615,6 +616,7 @@ class XSMainWindow(QtGui.QMainWindow):
         par = Parameter.create(type='backgroundRoiGroup', child_type = 'backgroundRoi', gui=self)
         self.bgroi_tree.setParameters(par, showTop=False)
         par.sigUpdate.connect(self.bgroi_tree_handler)
+        par.sigSnippet.connect(self.view_snippet)
         self.actionAddBgRoi = QtGui.QAction(('Add new background ROI'), self)
         self.actionAddBgRoi.setShortcut(QtGui.QKeySequence("Ctrl+B"))
         self.addAction(self.actionAddBgRoi)
@@ -637,6 +639,7 @@ class XSMainWindow(QtGui.QMainWindow):
         par = Parameter.create(type='analyzerGroup', child_type = 'analyzer', gui=self)
         self.analyzer_tree.setParameters(par, showTop=False)
         par.sigUpdate.connect(self.analyzer_tree_handler)
+        par.sigSnippet.connect(self.view_snippet)
         self.actionAddAnalyzer = QtGui.QAction(('Add new analyzer'), self)
         self.actionAddAnalyzer.setShortcut(QtGui.QKeySequence("Ctrl+A"))
         self.addAction(self.actionAddAnalyzer)
@@ -735,7 +738,7 @@ class XSMainWindow(QtGui.QMainWindow):
         try:
 
             #path = str(QtGui.QFileDialog.getExistingDirectory(self, "Select Folder"))
-            path = str(QtGui.QFileDialog.getOpenFileName(self, 'Select "*.FIO" file')[0])    
+            path = str(QtGui.QFileDialog.getOpenFileName(self, 'Select "*.FIO" file')[0])
             return self._read_scan(path)
 
         except Exception as e:
@@ -750,13 +753,12 @@ class XSMainWindow(QtGui.QMainWindow):
     def _read_scan(self, path):
         matches = re.findall(r'.?\_(\d{5})\.FIO', os.path.split(path)[1])
         scan_no = matches[0]
+        scan_no = '_' + scan_no + '_'   # add underscores to avoid moxing up image and scan numbers
         #img_path = os.path.join(path, 'pilatus_100k')
         img_path = os.path.split(path)[0]
         file_names = os.listdir(img_path)
         file_names = [f for f in file_names if scan_no in f and "tif" in f]
         files = sorted(list([os.path.join(img_path,f) for f in file_names]))
-        print(files)
-        
         files = [f for f in files if scan_no in f]
 
         # self.statusBar.showMessage('BUSY... Please wait.', 30000)
@@ -806,6 +808,24 @@ class XSMainWindow(QtGui.QMainWindow):
         # test = [] #['H:/raw/alignment_00887', 'H:/raw/alignment_00888', 'H:/raw/alignment_00889', 'H:/raw/alignment_00890']
 
         self.statusBar.showMessage('BUSY... Processing input file.', 30000)
+
+        msgBox = QtGui.QMessageBox( QtGui.QMessageBox.Information,
+            "Processing...", "Preparing", QtGui.QMessageBox.NoButton )
+
+        # Get the layout
+        l = msgBox.layout()
+
+        # Hide the default button
+        l.itemAtPosition( l.rowCount() - 1, 0 ).widget().hide()
+
+        progress = QtGui.QProgressBar()
+        progress.setMinimumSize(360,25)
+
+        # Add the progress bar at the bottom (last row + 1) and first column with column span
+        l.addWidget(progress,1, 1, 1, l.columnCount(), QtCore.Qt.AlignCenter )
+
+        msgBox.show()
+
         with open(file, 'r') as input_file:
             data=input_file.read().replace('\n', '')
 
@@ -816,13 +836,25 @@ class XSMainWindow(QtGui.QMainWindow):
         kp = r'{}\s*=\s*\'*\"*([^=,\t\'\"]*)'
 
         # Control keywords
-        plot                = False
-        single_analyzers    = False
-        single_scans        = False
-        subtract_background = False
-        normalize           = False
+        keywords = dict(
+            PLOT                = [False, 'refresh manual'],
+            NORMALIZE           = [False, 'normalize'],
+            SINGLE_SCANS        = [False, 'single_scans'],
+            SINGLE_ANALYZERS    = [False, 'single_analyzers'],
+            SUBTRACT_BACKGROUND = [False, 'subtract_background'],
+            AUTO                = [False, 'refresh toggle']
+            )
 
         for b in blocks:
+
+            # Test plotting keywords
+            for word in keywords:
+                if word in b:
+                    keywords[word][0] = True
+                    break
+
+
+
             if 'SCANS' in b:
                 for s in re.findall(kw_pattern.format('scan'),b):
                     path = str(re.findall(kp.format('path'),s)[0])
@@ -831,13 +863,13 @@ class XSMainWindow(QtGui.QMainWindow):
                     elastic_scan = str(re.findall(kp.format('elastic-scan'),s)[0])
                     b2 = str(re.findall(kp.format('monitor-sum'),s)[0])
                     monitor_sum = True if b2 == '1' or b2 == 'True' else False
-                    model = str(re.findall(kp.format('model'),s)[0])
+                    range = str(re.findall(kp.format('range'),s)[0])
 
                     scan = self._read_scan(path)
 
                     par = self.scan_tree.invisibleRootItem().child(0).param
-                    par.addNew(scan = scan, elastic_scan = elastic_scan,
-                        bg_model = model, include = include,
+                    par.addNew(scan = scan, elastic = elastic_scan,
+                        range = range, include = include,
                         monitor_sum = monitor_sum)
 
 
@@ -847,31 +879,26 @@ class XSMainWindow(QtGui.QMainWindow):
                     posy = float(re.findall(kp.format('position-y'),a)[0])
                     height = float(re.findall(kp.format('height'),a)[0])
                     width = float(re.findall(kp.format('width'),a)[0])
-                    angle = int(re.findall(kp.format('angle'),a)[0])
                     b1 = str(re.findall(kp.format('include'),a)[0])
                     include = True if b1 == '1' or b1 == 'True' else False
-                    b2 =  str(re.findall(kp.format('pixel-wise'),a)[0])
-                    pixel_wise = True if b2 == '1' or b2 == 'True' else False
-                    e_offset = float(re.findall(kp.format('energy-offset'),a)[0])
 
                     par = self.analyzer_tree.invisibleRootItem().child(0).param
                     par.addNew(position = [posx,posy], size = [height, width],
-                        angle = angle, include = include, pixel_wise = pixel_wise,
-                        e_offset = e_offset)
+                        include = include)
 
-            elif 'MODELS' in b:
-                for m in re.findall(kw_pattern.format('model'), b):
-                    refdata = str(re.findall(kp.format('reference-data'),m)[0])
-                    win_start = float(re.findall(kp.format('window-start'),m)[0])
-                    win_end = float(re.findall(kp.format('window-end'),m)[0])
-                    offset = float(re.findall(kp.format('vertical-offset'),m)[0])
+            elif 'BACKGROUNDS' in b:
+                for u in re.findall(kw_pattern.format('background'), b):
+                    posx = float(re.findall(kp.format('position-x'),u)[0])
+                    posy = float(re.findall(kp.format('position-y'),u)[0])
+                    height = float(re.findall(kp.format('height'),u)[0])
+                    width = float(re.findall(kp.format('width'),u)[0])
+                    b1 = str(re.findall(kp.format('include'),u)[0])
+                    include = True if b1 == '1' or b1 == 'True' else False
 
-                    par = self.background_tree.invisibleRootItem().child(0).param
-                    par.addNew(ref_data_name = refdata, win_start = win_start,
-                        win_end = win_end, vertical_offset = offset)
+                    par = self.bgroi_tree.invisibleRootItem().child(0).param
+                    par.addNew(position = [posx,posy], size = [height, width],
+                        include = include)
 
-            if 'PLOT' in b:
-                plot = True
 
             else:
                 # Not a recognized keyword
@@ -881,6 +908,8 @@ class XSMainWindow(QtGui.QMainWindow):
 
         else:
             # Finally! Fiddle it all together
+            msgBox.setText('Processing analysis')
+            progress.setValue(0)
 
             # Display first loaded scan
             par = self.scan_tree.invisibleRootItem().child(0).param
@@ -892,10 +921,22 @@ class XSMainWindow(QtGui.QMainWindow):
                 self.monitor.update_analyzer(((child.roi,)))
                 # child.roi.sigRegionChanged.emit(child.roi)
 
-            # Fit models
-            par = self.background_tree.invisibleRootItem().child(0).param
+            # Stir background rois
+            par = self.bgroi_tree.invisibleRootItem().child(0).param
             for child in par.children():
-                child.fit_model()
+                self.monitor.update_analyzer(((child.roi,)))
+                # child.roi.sigRegionChanged.emit(child.roi)
+
+
+            msgBox.setText('Finishing...')
+            progress.setValue(50)
+
+            # Execute plotting keywords
+            for ind, value in enumerate(keywords.values()):
+                msgBox.setText('Processing analysis and plotting options [{}]'.format(value[1]))
+                progress.setValue(100 * ind/len(keywords.values()))
+                if value[0]:
+                    self.plot.buttons[value[1]].click()
 
 
             self.statusBar.showMessage('', 0)
@@ -907,6 +948,11 @@ class XSMainWindow(QtGui.QMainWindow):
         if event.key() == QtCore.Qt.Key_F5:
             self.plot.update_plot_manually()
             event.accept()
+
+
+    def view_snippet(self, snippet_string):
+        self.dialog = SnippetViewer(snippet_string)
+        self.dialog.show()
 
 
 class QThread_Loader(QtCore.QThread):
@@ -923,3 +969,15 @@ class QThread_Loader(QtCore.QThread):
         self.scan.read_files(self.imageLoaded.emit)
         n = len(self.scan.images)
         self.taskFinished.emit(n)
+
+
+class SnippetViewer(QtGui.QDialog):
+    def __init__(self, snippet_string):
+        QtGui.QDialog.__init__(self)
+        self.setWindowTitle("Snippet")
+        layout = QtGui.QVBoxLayout()
+        text_window = QtGui.QTextEdit()
+        text_window.setReadOnly(True)
+        text_window.insertPlainText(snippet_string)
+        layout.addWidget(text_window)
+        self.setLayout(layout)

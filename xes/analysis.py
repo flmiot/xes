@@ -464,7 +464,7 @@ class Scan(object):
         fio_version = 1
         pattern = r'\s*([+-]*\d+\.*\d*[e0-9-+]*)\s'*17
         matches = re.findall(pattern, content)
-    
+
 
         fmt = "Fio file version: {}, files: {}"
         Log.debug(fmt.format(fio_version, len(matches)))
@@ -501,6 +501,8 @@ class Scan(object):
     def read_files(self, callback = None):
 
         self.images = np.empty(len(self.energies), dtype = '(195,487)i4')
+
+        # print(self.images, self.files)
         for ind, filename in enumerate(self.files):
             self.images[ind] = tiff.imread(filename)
 

@@ -279,6 +279,26 @@ class SpectralPlot(QtGui.QWidget):
         buttons['normalize'] = b
 
         b = QtGui.QToolButton(self)
+        b.setIcon(QtGui.QIcon('icons/normalize_before_sum_scans.png'))
+        b.setCheckable(True)
+        b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
+        b.setToolTip("Normalize each scan before summation")
+        b.toggled.connect(self.update_plot_manually)
+        # b.setVisible(False)
+        tb.addWidget(b)
+        buttons['normalize_scans'] = b
+
+        b = QtGui.QToolButton(self)
+        b.setIcon(QtGui.QIcon('icons/normalize_before_sum_analyzers.png'))
+        b.setCheckable(True)
+        b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
+        b.setToolTip("Normalize each analyzer before summation")
+        b.toggled.connect(self.update_plot_manually)
+        # b.setVisible(False)
+        tb.addWidget(b)
+        buttons['normalize_analyzers'] = b
+
+        b = QtGui.QToolButton(self)
         b.setIcon(QtGui.QIcon('icons/single_image.png'))
         b.setCheckable(True)
         b.setStyleSheet("QToolButton:checked { background-color: #f4c509;}")
@@ -339,6 +359,8 @@ class SpectralPlot(QtGui.QWidget):
             subtract_background = self.buttons['subtract_background'].isChecked()
             normalize = self.buttons['normalize'].isChecked()
             scanning_type = self.buttons['scanning_type'].isChecked()
+            normalize_scans = self.buttons['normalize_scans'].isChecked()
+            normalize_analyzers = self.buttons['normalize_analyzers'].isChecked()
 
             if self.buttons['single_image'].isChecked():
                 single_image = self.master.get_selected_image_index()
@@ -350,7 +372,8 @@ class SpectralPlot(QtGui.QWidget):
 
             # Plot current data:
             self._plot(analysis_result, single_analyzers, single_scans,
-                scanning_type, subtract_background, normalize, single_image)
+                scanning_type, subtract_background, normalize, single_image,
+                normalize_scans, normalize_analyzers)
 
             # Update diagnostics plots
             diag = self.master.diagnostics
@@ -374,10 +397,11 @@ class SpectralPlot(QtGui.QWidget):
 
     def _plot(self, analysis_result, single_analyzers = True, single_scans = True,
         scanning_type = False, subtract_background = True, normalize = False,
-        single_image = None):
+        single_image = None, normalize_scans = False, normalize_analyzers = False):
 
         e, i, b, l = analysis_result.get_curves(
-            single_scans, single_analyzers, scanning_type, single_image)
+            single_scans, single_analyzers, scanning_type, single_image,
+            normalize_scans, normalize_analyzers)
 
         pens, pens_bg = self._get_pens(e, i, b, single_analyzers, single_scans)
         # print(pens)
@@ -417,7 +441,6 @@ class SpectralPlot(QtGui.QWidget):
     def _get_pens(self, e, i, b, single_analyzers, single_scans):
         no_scans = len(e)
         no_analyzers = len(e[0])
-
         if single_analyzers and single_scans:
             shades = cm.gist_rainbow(np.linspace(0,1.0, no_scans))
             colors = np.tile(shades, (no_analyzers, 1, 1))
@@ -864,6 +887,8 @@ class XSMainWindow(QtGui.QMainWindow):
                     b2 = str(re.findall(kp.format('monitor-sum'),s)[0])
                     monitor_sum = True if b2 == '1' or b2 == 'True' else False
                     range = str(re.findall(kp.format('range'),s)[0])
+
+                    print(range)
 
                     scan = self._read_scan(path)
 

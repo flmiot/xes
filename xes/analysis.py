@@ -105,18 +105,17 @@ class AnalysisResult(object):
         self.labels.add_scan_labels(label_dict)
 
 
-    def get_curves(self, single_scans, single_analyzers, scanning_type = False,
-        single_image = None):
+    def get_curves(
+        self, single_scans, single_analyzers,
+        scanning_type = False,
+        single_image = None,
+        normalize_scans_before_sum = False,
+        normalize_analyzers_before_sum = False
+        ):
         """
         S           Number of scans
         A           Number of analyzers
         P_IN        Number of points along e_in axis
-
-        in_e        Array (S x A x P_IN)
-        out_e       Array (S x A)
-        i           Array (S x A x P_IN)
-        b           Array (S x A x P_IN)
-        l           Array (S x A)
         """
 
         in_e, out_e = self.in_e, self.out_e
@@ -161,15 +160,15 @@ class AnalysisResult(object):
             ei = np.array(out_e)
 
         if not single_analyzers:
-            ei, ii, bi = self.sum_analyzers(ei, ii, bi)
+            ei, ii, bi = self.sum_analyzers(ei, ii, bi, normalize_analyzers_before_sum)
 
         if not single_scans:
-            ei, ii, bi = self.sum_scans(ei, ii, bi)
+            ei, ii, bi = self.sum_scans(ei, ii, bi, normalize_scans_before_sum)
 
         return ei, ii, bi, l
 
 
-    def sum_analyzers(self, energies, intensities, backgrounds):
+    def sum_analyzers(self, energies, intensities, backgrounds, normalize_before_sum = False):
         """
         Interpolate spectra for multiple analyzers linearly and sum them
         scan-wise.
@@ -192,7 +191,7 @@ class AnalysisResult(object):
         z = zip(range(len(energies)), energies, intensities, backgrounds)
         for ind, energy, intensity, background in z:
 
-            ce, ii, b = self._interpolate_and_sum(energy, intensity, background)
+            ce, ii, b = self._interpolate_and_sum(energy, intensity, background, normalize_before_sum)
 
             energies_summed[ind] = [ce]
             intensities_summed[ind] = [ii]
@@ -201,7 +200,7 @@ class AnalysisResult(object):
         return energies_summed, intensities_summed, backgrounds_summed
 
 
-    def sum_scans(self, energies, intensities, backgrounds):
+    def sum_scans(self, energies, intensities, backgrounds, normalize_before_sum = False):
         """
         Interpolate spectra for multiple scans linearly and sum them
         analyzer-wise.
@@ -223,7 +222,7 @@ class AnalysisResult(object):
         # Iterate over analyzers
         z = zip(range(n_analyzers), energies.T, intensities.T, backgrounds.T)
         for ind, energy, intensity, background in z:
-            ce, ii, b = self._interpolate_and_sum(energy, intensity, background)
+            ce, ii, b = self._interpolate_and_sum(energy, intensity, background, normalize_before_sum)
 
             energies_summed.T[ind]      = [ce]
             intensities_summed.T[ind]   = [ii]
@@ -232,7 +231,7 @@ class AnalysisResult(object):
         return energies_summed, intensities_summed, backgrounds_summed
 
 
-    def _interpolate_and_sum(self, energy, intensity, background):
+    def _interpolate_and_sum(self, energy, intensity, background, normalize_before_sum = False):
 
         min_energy = np.max(list(np.min(e) for e in energy))
         max_energy = np.min(list(np.max(e) for e in energy))
@@ -247,10 +246,22 @@ class AnalysisResult(object):
 
             fi = interp.interp1d(e, i)
             fb = interp.interp1d(e, b)
-            ii += fi(ce)
-            bg += fb(ce)
+            if normalize_before_sum:
+                b       = fb(ce)
+                i, factor = self._normalize(fi(ce), b)
+                b       *= factor
+            else:
+                b       = fb(ce)
+                i       = fi(ce)
+            ii += i
+            bg += b
 
         return ce, ii, bg
+
+
+    def _normalize(self, i, b, area = 1000):
+        factor = 1 / np.sum(np.abs(i - b)) * area
+        return i * factor, factor
 
 
 class Experiment(object):

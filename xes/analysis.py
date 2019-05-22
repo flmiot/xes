@@ -109,6 +109,7 @@ class AnalysisResult(object):
         self, single_scans, single_analyzers,
         scanning_type = False,
         single_image = None,
+        slices = 1,
         normalize_scans_before_sum = False,
         normalize_analyzers_before_sum = False
         ):
@@ -150,8 +151,18 @@ class AnalysisResult(object):
             z = zip(range(len(i)), i, b)
             for ind, il, bl in z:
                 if not single_image is None:
-                    ii.append(il[:, single_image])
-                    bi.append(bl[:, single_image])
+                    if slices == 1:
+                        ii.append(il[:, single_image])
+                        bi.append(bl[:, single_image])
+                    else:
+                        i0 = single_image - int(slices / 2)
+                        i1 = i0 + slices
+                        if i0 < 0:
+                            i0 = 0
+
+                        Log.debug("Plotting slices from {} - {}".format(i0, i1))
+                        ii.append(np.sum(il[:, i0:i1], axis = 1))
+                        bi.append(np.sum(bl[:, i0:i1], axis = 1))
                 else:
                     ii.append(np.sum(il, axis = 1))
                     bi.append(np.sum(bl, axis = 1))
@@ -603,11 +614,18 @@ class Analyzer(object):
         self.active             = True
         self.name               = name
         self.mask               = None
+        self.poly_fit           = False
+        self.poly_order         = 6
 
 
-    def size(self):
-        x0, y0, x1, y1 = self.roi
-        return y1 - y0 + 1
+    def size(self, mask = None):
+        if mask is None:
+            x0, y0, x1, y1 = self.roi
+        else:
+            x0, y0, x1, y1 = self.clip_roi(self.roi, mask)
+
+        size = y1 - y0 + 1
+        return size if size > 0 else 0
 
 
     def pos(self):
@@ -653,7 +671,7 @@ class Analyzer(object):
         self.calibration = calibration.register(self)
 
 
-    def get_signal(self, image):
+    def get_signal(self, image, poly_fit = False, poly_order = 6):
         """
         """
 
@@ -663,15 +681,13 @@ class Analyzer(object):
         x0,y0,x1,y1 = self.clip_roi(self.roi, image.shape)
 
         ii = np.sum(image[y0:y1+1,x0:x1+1], axis = 0)
-
-        # try:
-        #     ea = self.calibration.get_e_axis(self, signal, self.roi)
-        # except:
-        #     ea = np.arange(len(ii))
-        #     fmt = "Energy axis could not be determined for analyzer {}."
-        #     Log.error(fmt.format(self.name))
-
         ea = np.arange(len(ii))
+
+        if poly_fit:
+            p = np.polyfit(ea, ii, poly_order)
+            poly = np.poly1d(p)
+            ii = poly(ea)
+
         return ea, ii
 
 
@@ -748,14 +764,28 @@ class Analyzer(object):
                         lower = bg_roi
 
         if not upper is None:
-            x0, y0, x1, y1 = self.clip_roi(upper.roi, image.shape)
-            bg_upper = np.sum(image[y0:y1+1, x0:x1+1], axis = 0)
-            bg[x0:x1+1] += bg_upper * self.size() / upper.size()
+            #x0, y0, x1, y1 = self.clip_roi(upper.roi, image.shape)
+            #bg_upper = np.sum(image[y0:y1+1, x0:x1+1], axis = 0)
+            _, bg_upper = upper.get_signal(image, poly_fit = upper.poly_fit,
+                poly_order = upper.poly_order)
+            size = upper.size(mask = image.shape)
+            if size > 0:
+                x0, _, x1, _ = upper.clip_roi(upper.roi, image.shape)
+                bg[x0:x1+1] += bg_upper * self.size(mask = image.shape) / size
+            else:
+                upper = None
 
         if not lower is None:
-            x0, y0, x1, y1 = self.clip_roi(lower.roi, image.shape)
-            bg_lower = np.sum(image[y0:y1+1, x0:x1+1], axis = 0)
-            bg[x0:x1+1] += bg_lower * self.size() / lower.size()
+            #x0, y0, x1, y1 = self.clip_roi(lower.roi, image.shape)
+            #bg_lower = np.sum(image[y0:y1+1, x0:x1+1], axis = 0)
+            _, bg_lower = lower.get_signal(image, poly_fit = lower.poly_fit,
+                poly_order = lower.poly_order)
+            size = lower.size(mask = image.shape)
+            if size > 0:
+                x0, _, x1, _ = lower.clip_roi(lower.roi, image.shape)
+                bg[x0:x1+1] += bg_lower * self.size(mask = image.shape) / size
+            else:
+                lower = None
 
         if not lower is None and not upper is None:
             bg /= 2

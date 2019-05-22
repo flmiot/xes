@@ -314,6 +314,15 @@ class SpectralPlot(QtGui.QWidget):
         self.label = QtGui.QLabel()
         self.label.setText('<font color="white">Cursor position</font>')
 
+        self.slices_layout = QtGui.QHBoxLayout()
+        label_input = QtGui.QLabel()
+        label_input.setText('<font color="white">Number of images to integrate around selected: </font>')
+        self.slices_input = QtGui.QLineEdit("1")
+        self.slices_layout.addWidget(label_input)
+        self.slices_layout.addWidget(self.slices_input)
+        self.slices_input.setDisabled(True)
+
+
 
 
         #
@@ -335,11 +344,13 @@ class SpectralPlot(QtGui.QWidget):
         layout.addWidget(tb)
         layout.addWidget(self.plot)
         layout.addWidget(self.label)
+        layout.addLayout(self.slices_layout)
 
         #layout.addWidget(controlWidget)
         self.buttons = buttons
 
     def switch_to_scanning_type(self):
+
         self.plot.plotItem.enableAutoRange()
         self.update_plot_manually()
 
@@ -351,33 +362,41 @@ class SpectralPlot(QtGui.QWidget):
 
 
     def update_plot_manually(self):
+        # try:
+        self.clear_plot()
+
+        single_scans = self.buttons['single_scans'].isChecked()
+        single_analyzers = self.buttons['single_analyzers'].isChecked()
+        subtract_background = self.buttons['subtract_background'].isChecked()
+        normalize = self.buttons['normalize'].isChecked()
+        scanning_type = self.buttons['scanning_type'].isChecked()
+        normalize_scans = self.buttons['normalize_scans'].isChecked()
+        normalize_analyzers = self.buttons['normalize_analyzers'].isChecked()
+
         try:
-            self.clear_plot()
-
-            single_scans = self.buttons['single_scans'].isChecked()
-            single_analyzers = self.buttons['single_analyzers'].isChecked()
-            subtract_background = self.buttons['subtract_background'].isChecked()
-            normalize = self.buttons['normalize'].isChecked()
-            scanning_type = self.buttons['scanning_type'].isChecked()
-            normalize_scans = self.buttons['normalize_scans'].isChecked()
-            normalize_analyzers = self.buttons['normalize_analyzers'].isChecked()
-
-            if self.buttons['single_image'].isChecked():
-                single_image = self.master.get_selected_image_index()
-            else:
-                single_image = None
-
-            analysis_result = experiment.get_spectrum()
+            slices = int(self.slices_input.text())
+        except:
+            slices = 1
+    
+        if self.buttons['single_image'].isChecked():
+            single_image = self.master.get_selected_image_index()
+            self.slices_input.setEnabled(True)
+        else:
+            single_image = None
+            self.slices_input.setDisabled(True)
 
 
-            # Plot current data:
-            self._plot(analysis_result, single_analyzers, single_scans,
-                scanning_type, subtract_background, normalize, single_image,
-                normalize_scans, normalize_analyzers)
+        analysis_result = experiment.get_spectrum()
 
-            # Update diagnostics plots
-            diag = self.master.diagnostics
-            diag.update_energy_fit(analysis_result)
+
+        # Plot current data:
+        self._plot(analysis_result, single_analyzers, single_scans,
+            scanning_type, subtract_background, normalize, single_image,
+            slices, normalize_scans, normalize_analyzers)
+
+        # Update diagnostics plots
+        diag = self.master.diagnostics
+        diag.update_energy_fit(analysis_result)
 
 
         # # Plot ghosts
@@ -390,17 +409,18 @@ class SpectralPlot(QtGui.QWidget):
         # else:
         #     self.ghosts = []
 
-        except Exception as e:
-            fmt = 'Plot update failed: {}'.format(e)
-            Log.error(fmt)
+        # except Exception as e:
+        #     fmt = 'Plot update failed: {}'.format(e)
+        #     Log.error(fmt)
 
 
     def _plot(self, analysis_result, single_analyzers = True, single_scans = True,
         scanning_type = False, subtract_background = True, normalize = False,
-        single_image = None, normalize_scans = False, normalize_analyzers = False):
+        single_image = None, slices = 1, normalize_scans = False,
+        normalize_analyzers = False):
 
         e, i, b, l = analysis_result.get_curves(
-            single_scans, single_analyzers, scanning_type, single_image,
+            single_scans, single_analyzers, scanning_type, single_image, slices,
             normalize_scans, normalize_analyzers)
 
         pens, pens_bg = self._get_pens(e, i, b, single_analyzers, single_scans)
@@ -549,13 +569,13 @@ class DiagnosticsPlot(QtGui.QWidget):
         fits = analysis_result.fits
 
         for fit in fits:
-            if fit is None:
-                continue
-
-            for x, y_data, y_fit in fit:
-                plot.plot(x, y_data, pen = None, name = 'Data', symbol='o')
-                pen = pg.mkPen(color=[0,0,255], style=QtCore.Qt.DashLine)
-                plot.plot(x, y_fit, pen = pen, name = 'Fit')
+            try:
+                for x, y_data, y_fit in fit:
+                    plot.plot(x, y_data, pen = None, name = 'Data', symbol='o')
+                    pen = pg.mkPen(color=[0,0,255], style=QtCore.Qt.DashLine)
+                    plot.plot(x, y_fit, pen = pen, name = 'Fit')
+            except:
+                Log.debug("Invalid energy calibration could not be plotted.")
 
 
 class XSMainWindow(QtGui.QMainWindow):

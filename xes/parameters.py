@@ -208,12 +208,16 @@ class BackgroundParameter(CustomParameter):
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
+        c.append({'name': 'Polynomial fit', 'type':'bool', 'value':opts['polyfit']})
+        c.append({'name': 'Polynomial order', 'type':'int', 'value':opts['polyorder']})
         opts['children'] = c
         super(self.__class__, self).__init__(**opts)
 
 
     def update(self, parameter):
         self.roi.analyzer.active = self.child('Include').value()
+        self.roi.analyzer.poly_fit = self.child('Polynomial fit').value()
+        self.roi.analyzer.poly_order = self.child('Polynomial order').value()
         super(self.__class__, self).update(parameter)
 
 
@@ -455,7 +459,8 @@ class ScanGroupParameter(CustomGroupParameter):
 
 
     def addNew(self, scan = None, include = True, scanning_type = False,
-        monitor_sum = True, elastic = "None", offset_x = 0, offset_y = 0, range = None):
+        monitor_sum = True, elastic = "None", offset_x = 0, offset_y = 0,
+        range = None, slices = 5):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
         provided (i.e. scan = None).
@@ -495,13 +500,15 @@ class BGRoiGroupParameter(CustomGroupParameter):
         super(self.__class__, self).__init__(**opts)
 
     def addNew(self, position = [128,128], size = [20,20],
-        include = True):
+        include = True, polyfit = False, polyorder = 6):
         opts = {}
         opts['name'] = 'Background ROI {}'.format(len(experiment.bg_rois) + 1)
         opts['gui'] = self.opts['gui']
         opts['position'] = position
         opts['size'] = size
         opts['include'] = include
+        opts['polyfit'] = polyfit
+        opts['polyorder'] = polyorder
         super(self.__class__, self).addNew(**opts)
 
 

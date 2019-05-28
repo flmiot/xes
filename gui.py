@@ -1,20 +1,26 @@
+import os
 import sys
-from pyqtgraph.Qt import QtCore, QtGui
 
-from xes.widgets import XSMainWindow
+# ========================================================================
+#   This is only needed for development.
+#   Update the UI and resource file in case there were changes.
+try:
+    if sys.argv[1] == 'dev':
+        os.system("pyrcc5 development/resources.qrc -o resources_rc.py")
+        os.system("pyuic5 development/designer.ui -o xes/qt/ui.py")
+        print("Done: Rebuilding of UI and resource file")
+except:
+    print("No rebuilding of UI and resource file.")
+# ========================================================================
 
+from pyqtgraph.Qt import QtCore
+
+import xes
 if __name__ == '__main__':
 
-    app = QtGui.QApplication([])
-    app.setWindowIcon(QtGui.QIcon('icons/icon.png'))
-
-    w = XSMainWindow()
-
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] != 'dev':
         # Schedule processing of input file
         timer = QtCore.QTimer()
         timer.singleShot(2000, lambda : w.parse_input_file(sys.argv[1]))
 
-
-    w.show()
-    app.exec_()
+    xes.app.exec_()

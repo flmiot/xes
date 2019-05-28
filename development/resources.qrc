@@ -1,0 +1,14 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>resources/auto-update.png</file>
+    <file>resources/icon.png</file>
+    <file>resources/normalize.png</file>
+    <file>resources/persistence-mode.png</file>
+    <file>resources/scanning_type.png</file>
+    <file>resources/single_analyzers.png</file>
+    <file>resources/single_image.png</file>
+    <file>resources/single_scans.png</file>
+    <file>resources/subtract_background_model.png</file>
+    <file>resources/update.png</file>
+  </qresource>
+</RCC>

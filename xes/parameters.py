@@ -5,11 +5,22 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.parametertree import Parameter, parameterTypes, registerParameterType
 
-from xes import experiment
+import xes
 from xes.analysis import Analyzer, Calibration
 
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
+
+def register_parameter_types():
+    registerParameterType('calibrationGroup', CalibrationGroupParameter, override=True)
+    registerParameterType('backgroundRoiGroup', BGRoiGroupParameter, override=True)
+    registerParameterType('scanGroup', ScanGroupParameter, override=True)
+    registerParameterType('analyzerGroup', AnalyzerGroupParameter, override=True)
+    registerParameterType('calibration', CalibrationParameter, override=True)
+    registerParameterType('scan', ScanParameter, override=True)
+    registerParameterType('backgroundRoi', BackgroundParameter, override=True)
+    registerParameterType('analyzer', AnalyzerParameter, override=True)
+
 
 class CustomParameterItem(parameterTypes.GroupParameterItem):
     def __init__(self, *args, **kwargs):
@@ -112,7 +123,7 @@ class AnalyzerROI(pg.ROI):
         x1,y1 = position[0] + size[0], position[1] + size[1]
         self.analyzer.set_roi([x0,y0,x1,y1])
         self.analyzer.set_mask( mask = [195, 487] )
-        experiment.add_analyzer(self.analyzer)
+        xes.experiment.add_analyzer(self.analyzer)
         self.setToolTip(self.analyzer.name)
         monitor.add_analyzer_roi(self)
 
@@ -130,7 +141,7 @@ class AnalyzerParameter(CustomParameter):
 
     def __init__(self, **opts):
         self.roi = AnalyzerROI(opts['name'], opts['position'], opts['size'],
-            opts['gui'].monitor) # opts['angle'],
+            xes.gui.monitor1) # opts['angle'],
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
@@ -171,7 +182,7 @@ class AnalyzerParameter(CustomParameter):
         	}
         super(self.__class__, self).snippet(snippet_dict)
 
-registerParameterType('analyzer', AnalyzerParameter, override=True)
+
 
 
 class BackgroundROI(pg.ROI):
@@ -196,7 +207,7 @@ class BackgroundROI(pg.ROI):
         x1,y1 = position[0] + size[0], position[1] + size[1]
         self.analyzer.set_roi([x0,y0,x1,y1])
         self.analyzer.set_mask( mask = [195, 487] )
-        experiment.add_background_roi(self.analyzer)
+        xes.experiment.add_background_roi(self.analyzer)
         self.setToolTip(self.analyzer.name)
         monitor.add_background_roi(self)
 
@@ -204,7 +215,7 @@ class BackgroundROI(pg.ROI):
 class BackgroundParameter(CustomParameter):
     def __init__(self, **opts):
         self.roi = BackgroundROI(opts['name'], opts['position'], opts['size'],
-            opts['gui'].monitor) # opts['angle'],
+            xes.gui.monitor1) # opts['angle'],
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':opts['include']})
@@ -234,7 +245,6 @@ class BackgroundParameter(CustomParameter):
         	}
         super(self.__class__, self).snippet(snippet_dict)
 
-registerParameterType('backgroundRoi', BackgroundParameter, override=True)
 
 
 class ScanParameter(CustomParameter):
@@ -259,9 +269,9 @@ class ScanParameter(CustomParameter):
         elastic_range = opts['elastic_range']
 
 
-        experiment.add_scan(scan)
+        xes.experiment.add_scan(scan)
         names = ['None']
-        names.extend(list([s.name for s in experiment.scans]))
+        names.extend(list([s.name for s in xes.experiment.scans]))
 
         if not elastic in names:
             names.append(elastic)
@@ -301,11 +311,11 @@ class ScanParameter(CustomParameter):
             self.scan.range[1] += 1
 
         if elastic_name != "None":
-            ind = list([s.name for s in experiment.scans]).index(elastic_name)
-            elastic_scan = experiment.scans[ind]
+            ind = list([s.name for s in xes.experiment.scans]).index(elastic_name)
+            elastic_scan = xes.experiment.scans[ind]
             calibration.elastic_scan = elastic_scan
 
-        experiment.change_calibration(self.scan, calibration)
+        xes.experiment.change_calibration(self.scan, calibration)
 
             # ind = list([s.name for s in experiment.scans]).index(self.scan.name)
             # experiment.elastic_scans[ind] = elastic_scan
@@ -329,7 +339,7 @@ class ScanParameter(CustomParameter):
     def update_lists(self):
         d = dict()
         elastic_scans = ['None']
-        elastic_scans.extend(list([s.name for s in experiment.scans]))
+        elastic_scans.extend(list([s.name for s in xes.experiment.scans]))
         d['Elastic scan'] = elastic_scans
         # l = ['None']
         # l.extend(list([b.name for b in experiment.bg_models]))
@@ -350,16 +360,15 @@ class ScanParameter(CustomParameter):
         	}
         super(self.__class__, self).snippet(snippet_dict)
 
-registerParameterType('scan', ScanParameter, override=True)
 
 
 class CalibrationParameter(CustomParameter):
     def __init__(self, **opts):
         self.calibration = Calibration()
         self.calibration.name = opts['name']
-        experiment.add_calibration(self.calibration)
+        xes.experiment.add_calibration(self.calibration)
         names = ['None']
-        names.extend(list([scan.name for scan in experiment.scans]))
+        names.extend(list([scan.name for scan in xes.experiment.scans]))
         if opts['elastic_scan'] not in names:
             names.append(opts['elastic_scan'])
 
@@ -379,7 +388,6 @@ class CalibrationParameter(CustomParameter):
         opts['children'] = c
         super(self.__class__, self).__init__(**opts)
 
-registerParameterType('calibration', CalibrationParameter, override=True)
 
 
 class CustomGroupParameter(parameterTypes.GroupParameter):
@@ -438,8 +446,7 @@ class AnalyzerGroupParameter(CustomGroupParameter):
     def addNew(self, position = [128,128], size = [20,20], angle = 0.0,
         include = True, e_offset = 0.0, calibration = 'None'):
         opts = {}
-        opts['name'] = 'Analyzer {}'.format( len(experiment.analyzers) + 1)
-        opts['gui'] = self.opts['gui']
+        opts['name'] = 'Analyzer {}'.format( len(xes.experiment.analyzers) + 1)
         opts['position'] = position
         opts['size'] = size
         opts['angle'] = angle
@@ -449,12 +456,10 @@ class AnalyzerGroupParameter(CustomGroupParameter):
         super(self.__class__, self).addNew(**opts)
         # name=name, type=self.opts['child_type'], gui=self.opts['gui']
 
-registerParameterType('analyzerGroup', AnalyzerGroupParameter, override=True)
-
 
 class ScanGroupParameter(CustomGroupParameter):
     def __init__(self, **opts):
-        opts['addText'] = 'Add scan'
+        opts['addText'] = 'Add run'
         super(self.__class__, self).__init__(**opts)
 
 
@@ -468,7 +473,7 @@ class ScanGroupParameter(CustomGroupParameter):
 
 
         if scan is None:
-            scan = self.opts['gui'].action_read_scan()
+            scan = xes.gui.add_scan()
 
         if scan is None:
             return
@@ -491,8 +496,6 @@ class ScanGroupParameter(CustomGroupParameter):
         self.update_lists()
 
 
-registerParameterType('scanGroup', ScanGroupParameter, override=True)
-
 
 class BGRoiGroupParameter(CustomGroupParameter):
     def __init__(self, **opts):
@@ -502,8 +505,7 @@ class BGRoiGroupParameter(CustomGroupParameter):
     def addNew(self, position = [128,128], size = [20,20],
         include = True, polyfit = False, polyorder = 6):
         opts = {}
-        opts['name'] = 'Background ROI {}'.format(len(experiment.bg_rois) + 1)
-        opts['gui'] = self.opts['gui']
+        opts['name'] = 'Background ROI {}'.format(len(xes.experiment.bg_rois) + 1)
         opts['position'] = position
         opts['size'] = size
         opts['include'] = include
@@ -512,7 +514,6 @@ class BGRoiGroupParameter(CustomGroupParameter):
         super(self.__class__, self).addNew(**opts)
 
 
-registerParameterType('backgroundRoiGroup', BGRoiGroupParameter, override=True)
 
 
 class CalibrationGroupParameter(CustomGroupParameter):
@@ -523,12 +524,9 @@ class CalibrationGroupParameter(CustomGroupParameter):
     def addNew(self, scan_name = 'None', main_analyzer = None,
         first_frame = 0, last_frame = 0):
         opts = {}
-        opts['name'] = 'Calibration {}'.format(len(experiment.calibrations) + 1)
+        opts['name'] = 'Calibration {}'.format(len(xes.experiment.calibrations) + 1)
         opts['elastic_scan'] = scan_name
         opts['first_frame'] = first_frame
         opts['last_frame'] = last_frame
         opts['main_analyzer'] = main_analyzer
         super(self.__class__, self).addNew(**opts)
-
-
-registerParameterType('calibrationGroup', CalibrationGroupParameter, override=True)

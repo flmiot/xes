@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt # For debugging
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-
+import xes
 
 class Label(object):
     def __init__(self):

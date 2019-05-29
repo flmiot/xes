@@ -797,13 +797,37 @@ class Analyzer(object):
 
 
 
+class ManualCalibration(object):
+    def __init__(self):
+        self.name           = None
+        self.series         = {}
+        self.calibrationRois= []
+
+
+    def add_series(self, series):
+        self.series[series] = []
+
+    def add_energy_point(self, series, energy, pixel_position):
+        self.series[series].append([energy, pixel_position])
+
+    def get_energy_axis(self, analyzer):
+        pass
+
+
+
+class CalibrationRoi(Analyzer):
+    def __init__(self, *args, **kwargs):
+        self.display        = True
+        self.energy         = 0.0
+        self.pixel_position = 0
+        super(self.__class__, self).__init__(self)
 
 
 
 class Calibration(object):
     def __init__(self):
         self.name           = None
-        self.elastic_scan   = None
+        self.calibrationRois= None
         self.analyzers      = []
         self.calibrations   = []
         self.fits           = []

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1024</width>
+    <width>800</width>
     <height>600</height>
    </rect>
   </property>
@@ -17,8 +17,14 @@
    <iconset resource="resources.qrc">
     <normaloff>:/icons/resources/icon.png</normaloff>:/icons/resources/icon.png</iconset>
   </property>
+  <property name="windowOpacity">
+   <double>1.000000000000000</double>
+  </property>
   <property name="tabShape">
    <enum>QTabWidget::Triangular</enum>
+  </property>
+  <property name="unifiedTitleAndToolBarOnMac">
+   <bool>false</bool>
   </property>
   <widget class="QWidget" name="centralwidget"/>
   <widget class="QMenuBar" name="menubar">
@@ -26,7 +32,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1024</width>
+     <width>800</width>
      <height>21</height>
     </rect>
    </property>
@@ -46,8 +52,10 @@
    </attribute>
    <addaction name="actionUpdate"/>
    <addaction name="actionAutoUpdate"/>
+   <addaction name="separator"/>
    <addaction name="actionSingleAnalyzers"/>
    <addaction name="actionSingleScans"/>
+   <addaction name="separator"/>
    <addaction name="actionNormalize"/>
    <addaction name="actionSubtractBackground"/>
    <addaction name="actionScanningType"/>
@@ -75,19 +83,19 @@
    <widget class="QWidget" name="dockWidgetContents_2">
     <layout class="QVBoxLayout" name="verticalLayout_3">
      <property name="spacing">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="leftMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="topMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="rightMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="bottomMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <item>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -144,17 +152,20 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_5">
     <layout class="QVBoxLayout" name="verticalLayout_2">
+     <property name="spacing">
+      <number>1</number>
+     </property>
      <property name="leftMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="topMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="rightMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="bottomMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <item>
       <widget class="Monitor" name="monitor1" native="true">
@@ -573,6 +584,9 @@
          </disabled>
         </palette>
        </property>
+       <property name="cursor">
+        <cursorShape>CrossCursor</cursorShape>
+       </property>
        <property name="autoFillBackground">
         <bool>true</bool>
        </property>
@@ -602,6 +616,9 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_6">
     <layout class="QVBoxLayout" name="verticalLayout_5">
+     <property name="spacing">
+      <number>0</number>
+     </property>
      <property name="leftMargin">
       <number>0</number>
      </property>
@@ -1054,6 +1071,9 @@
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_4">
     <layout class="QVBoxLayout" name="verticalLayout_6">
+     <property name="spacing">
+      <number>0</number>
+     </property>
      <property name="leftMargin">
       <number>0</number>
      </property>
@@ -1513,19 +1533,19 @@
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout">
      <property name="spacing">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="leftMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="topMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="rightMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="bottomMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <item>
       <layout class="QHBoxLayout" name="horizontalLayout">
@@ -1571,19 +1591,19 @@
    <widget class="QWidget" name="dockWidgetContents_3">
     <layout class="QVBoxLayout" name="verticalLayout_4">
      <property name="spacing">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="leftMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="topMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="rightMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <property name="bottomMargin">
-      <number>0</number>
+      <number>1</number>
      </property>
      <item>
       <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -1622,7 +1642,37 @@
     </layout>
    </widget>
   </widget>
-  <widget class="QStatusBar" name="statusBar"/>
+  <widget class="Logbar" name="statusBar"/>
+  <widget class="QDockWidget" name="dock_calibration">
+   <property name="windowTitle">
+    <string>Energy calibration</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_7">
+    <layout class="QVBoxLayout" name="verticalLayout_7">
+     <property name="spacing">
+      <number>1</number>
+     </property>
+     <property name="leftMargin">
+      <number>1</number>
+     </property>
+     <property name="topMargin">
+      <number>1</number>
+     </property>
+     <property name="rightMargin">
+      <number>1</number>
+     </property>
+     <property name="bottomMargin">
+      <number>1</number>
+     </property>
+     <item>
+      <widget class="CalibrationTree" name="tree_calibration" native="true"/>
+     </item>
+    </layout>
+   </widget>
+  </widget>
   <action name="actionUpdate">
    <property name="icon">
     <iconset resource="resources.qrc">
@@ -1652,6 +1702,9 @@
    <property name="toolTip">
     <string>Update all plots automatically</string>
    </property>
+   <property name="shortcut">
+    <string>Shift+F5</string>
+   </property>
   </action>
   <action name="actionNormalize">
    <property name="checkable">
@@ -1666,6 +1719,9 @@
    </property>
    <property name="toolTip">
     <string>Normalize the area under each curve to 1000</string>
+   </property>
+   <property name="shortcut">
+    <string>N</string>
    </property>
   </action>
   <action name="actionSubtractBackground">
@@ -1682,6 +1738,9 @@
    <property name="toolTip">
     <string>Subtract background models</string>
    </property>
+   <property name="shortcut">
+    <string>B</string>
+   </property>
   </action>
   <action name="actionSingleAnalyzers">
    <property name="checkable">
@@ -1697,6 +1756,9 @@
    <property name="toolTip">
     <string>Enable to plot seperate curves for analyzer signals</string>
    </property>
+   <property name="shortcut">
+    <string>Shift+A</string>
+   </property>
   </action>
   <action name="actionSingleScans">
    <property name="checkable">
@@ -1711,6 +1773,9 @@
    </property>
    <property name="toolTip">
     <string>Enable to plot seperate curves for individual scans</string>
+   </property>
+   <property name="shortcut">
+    <string>Shift+S</string>
    </property>
   </action>
   <action name="actionSingleImage">
@@ -1795,6 +1860,17 @@
     <slot>polyfit_no_bgroi()</slot>
    </slots>
   </customwidget>
+  <customwidget>
+   <class>Logbar</class>
+   <extends>QStatusBar</extends>
+   <header>xes.logbar</header>
+  </customwidget>
+  <customwidget>
+   <class>CalibrationTree</class>
+   <extends>QWidget</extends>
+   <header>xes.trees</header>
+   <container>1</container>
+  </customwidget>
  </customwidgets>
  <resources>
   <include location="resources.qrc"/>
@@ -1808,11 +1884,11 @@
    <hints>
     <hint type="sourcelabel">
      <x>73</x>
-     <y>95</y>
+     <y>68</y>
     </hint>
     <hint type="destinationlabel">
      <x>76</x>
-     <y>203</y>
+     <y>130</y>
     </hint>
    </hints>
   </connection>
@@ -1823,12 +1899,12 @@
    <slot>solo_selected_analyzer()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>164</x>
-     <y>91</y>
+     <x>163</x>
+     <y>64</y>
     </hint>
     <hint type="destinationlabel">
      <x>165</x>
-     <y>161</y>
+     <y>107</y>
     </hint>
    </hints>
   </connection>
@@ -1839,12 +1915,12 @@
    <slot>invert_analyzer_selection()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>275</x>
-     <y>97</y>
+     <x>272</x>
+     <y>70</y>
     </hint>
     <hint type="destinationlabel">
      <x>254</x>
-     <y>179</y>
+     <y>125</y>
     </hint>
    </hints>
   </connection>
@@ -1856,7 +1932,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>60</x>
-     <y>486</y>
+     <y>326</y>
     </hint>
     <hint type="destinationlabel">
      <x>70</x>
@@ -1871,8 +1947,8 @@
    <slot>polyfit_all_bgrois()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>151</x>
-     <y>495</y>
+     <x>150</x>
+     <y>335</y>
     </hint>
     <hint type="destinationlabel">
      <x>152</x>
@@ -1887,8 +1963,8 @@
    <slot>polyfit_no_bgroi()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>247</x>
-     <y>499</y>
+     <x>244</x>
+     <y>339</y>
     </hint>
     <hint type="destinationlabel">
      <x>245</x>
@@ -1904,11 +1980,11 @@
    <hints>
     <hint type="sourcelabel">
      <x>102</x>
-     <y>308</y>
+     <y>174</y>
     </hint>
     <hint type="destinationlabel">
      <x>94</x>
-     <y>399</y>
+     <y>223</y>
     </hint>
    </hints>
   </connection>
@@ -1919,12 +1995,12 @@
    <slot>solo_selected_scan()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>170</x>
-     <y>314</y>
+     <x>121</x>
+     <y>180</y>
     </hint>
     <hint type="destinationlabel">
      <x>177</x>
-     <y>398</y>
+     <y>223</y>
     </hint>
    </hints>
   </connection>
@@ -1935,12 +2011,12 @@
    <slot>invert_scan_selection()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>252</x>
-     <y>315</y>
+     <x>249</x>
+     <y>181</y>
     </hint>
     <hint type="destinationlabel">
      <x>261</x>
-     <y>409</y>
+     <y>223</y>
     </hint>
    </hints>
   </connection>

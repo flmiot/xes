@@ -6,17 +6,22 @@ from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.parametertree import Parameter, parameterTypes, registerParameterType
 
 import xes
-from xes.analysis import Analyzer, Calibration
+from xes.analysis import ManualCalibration, Calibration
+from xes.rois import AnalyzerROI, BackgroundROI, ManualCalibrationROI
 
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 def register_parameter_types():
-    registerParameterType('calibrationGroup', CalibrationGroupParameter, override=True)
     registerParameterType('backgroundRoiGroup', BGRoiGroupParameter, override=True)
     registerParameterType('scanGroup', ScanGroupParameter, override=True)
     registerParameterType('analyzerGroup', AnalyzerGroupParameter, override=True)
-    registerParameterType('calibration', CalibrationParameter, override=True)
+
+    registerParameterType('ManualCalibrationEnergyPoint', ManualCalibrationEnergyPointParameter, override = True)
+    registerParameterType('manualCalibrationSeries', ManualCalibrationSeriesParameter, override = True)
+    registerParameterType('manualCalibration', ManualCalibrationParameter, override=True)
+    registerParameterType('calibrationGroup', CalibrationGroupParameter, override=True)
+
     registerParameterType('scan', ScanParameter, override=True)
     registerParameterType('backgroundRoi', BackgroundParameter, override=True)
     registerParameterType('analyzer', AnalyzerParameter, override=True)
@@ -104,28 +109,7 @@ class CustomParameter(parameterTypes.GroupParameter):
             self.sigSnippet.emit(fmt)
 
 
-class AnalyzerROI(pg.ROI):
-    def __init__(self, name, position, size, monitor): #angle
 
-        pg.ROI.__init__(self, pos=position, size=size) #, scaleSnap=True, translateSnap=True)
-        self.addScaleHandle([1, 1], [0, 0])
-        self.addScaleHandle([0, 0], [1, 1])
-        self.addScaleHandle([0, 1], [1, 0])
-        self.addScaleHandle([1, 0], [0, 1])
-
-        self.addScaleHandle([0.5, 1], [0.5, 0])
-        self.addScaleHandle([0.5, 0], [0.5, 1])
-
-        # self.addRotateHandle([0, 0], [0.5, 0.5])
-
-        self.analyzer = Analyzer(name)
-        x0,y0 = position[0] - size[0], position[1] - size[1]
-        x1,y1 = position[0] + size[0], position[1] + size[1]
-        self.analyzer.set_roi([x0,y0,x1,y1])
-        self.analyzer.set_mask( mask = [195, 487] )
-        xes.experiment.add_analyzer(self.analyzer)
-        self.setToolTip(self.analyzer.name)
-        monitor.add_analyzer_roi(self)
 
 
 class AnalyzerParameter(CustomParameter):
@@ -137,7 +121,6 @@ class AnalyzerParameter(CustomParameter):
     Energy offset       Energy offset for this analyzer, relative to calibration
     ------------------  --------------------------------------------------
     """
-
 
     def __init__(self, **opts):
         self.roi = AnalyzerROI(opts['name'], opts['position'], opts['size'],
@@ -181,35 +164,6 @@ class AnalyzerParameter(CustomParameter):
                 }
         	}
         super(self.__class__, self).snippet(snippet_dict)
-
-
-
-
-class BackgroundROI(pg.ROI):
-    def __init__(self, name, position, size, monitor): # angle,
-        # Make this a different color
-
-        # Use a custom pen to differentiate this ROI from the signal ROIs
-        c = QtGui.QColor(*[177, 206, 198])
-        pen = pg.mkPen(color=c, style=QtCore.Qt.DashLine)
-
-        pg.ROI.__init__(self, pos=position, size=size, pen = pen) #, scaleSnap=True, translateSnap=True)
-        self.addScaleHandle([1, 1], [0, 0])
-        self.addScaleHandle([0, 0], [1, 1])
-        self.addScaleHandle([0, 1], [1, 0])
-        self.addScaleHandle([1, 0], [0, 1])
-
-        self.addScaleHandle([0.5, 1], [0.5, 0])
-        self.addScaleHandle([0.5, 0], [0.5, 1])
-
-        self.analyzer = Analyzer(name)
-        x0,y0 = position[0] - size[0], position[1] - size[1]
-        x1,y1 = position[0] + size[0], position[1] + size[1]
-        self.analyzer.set_roi([x0,y0,x1,y1])
-        self.analyzer.set_mask( mask = [195, 487] )
-        xes.experiment.add_background_roi(self.analyzer)
-        self.setToolTip(self.analyzer.name)
-        monitor.add_background_roi(self)
 
 
 class BackgroundParameter(CustomParameter):
@@ -397,7 +351,8 @@ class CustomGroupParameter(parameterTypes.GroupParameter):
     sigSnippet      = QtCore.Signal(object)
 
     def __init__(self, **opts):
-        opts['name'] = 'params'
+        if not 'name' in opts.keys():
+            opts['name'] = 'params'
         parameterTypes.GroupParameter.__init__(self, **opts)
 
 
@@ -514,6 +469,57 @@ class BGRoiGroupParameter(CustomGroupParameter):
         super(self.__class__, self).addNew(**opts)
 
 
+class ManualCalibrationEnergyPointParameter(parameterTypes.SimpleParameter):
+    def __init__(self, **opts):
+        self.roi = ManualCalibrationROI(opts['name'], opts['position'], opts['size'],
+            xes.gui.monitor1)
+        opts['type'] = 'float'
+        opts['suffix'] = 'eV'
+        opts['value'] = 5000.
+        opts['decimals'] = 6
+        # c = []
+        # c.append({'name': 'Energy', 'type':'float', 'value': 9600.5})
+        # opts['children'] = c
+        super(self.__class__, self).__init__(**opts)
+
+class ManualCalibrationSeriesParameter(CustomGroupParameter):
+    def __init__(self, **opts):
+        opts['addText'] = 'Add point'
+        opts['child_type'] = 'ManualCalibrationEnergyPoint'
+        opts['calibration'].add_series(opts['name'])
+        super(self.__class__, self).__init__(**opts)
+
+
+
+    def addNew(self, position = [128,128], size = [20,20], angle = 0.0):
+        opts = {}
+        l = len(self.opts['calibration'].series[self.opts['name']]) + 1
+        opts['name'] = 'Energy ({})'.format(l)
+        opts['calibration'] = self.opts['calibration']
+        opts['calibration'].add_energy_point(self.opts['name'], 0, 0)
+        opts['position'] = position
+        opts['size'] = size
+        super(self.__class__, self).addNew(**opts)
+
+
+class ManualCalibrationParameter(CustomGroupParameter):
+    def __init__(self, **opts):
+        opts['addText'] = 'Add manual series'
+        opts['child_type'] = 'manualCalibrationSeries'
+        self.calibration = ManualCalibration()
+        self.calibration.name = opts['name']
+        xes.experiment.add_calibration(self.calibration)
+        super(self.__class__, self).__init__(**opts)
+        self.addChild({'name': 'Monitor: Show', 'type': 'bool', 'value': True})
+        self.addChild({'name': 'Fit active scans', 'type': 'action'})
+
+    def addNew(self, scan_name = 'None', main_analyzer = None,
+        first_frame = 0, last_frame = 0):
+        opts = {}
+        l = len(self.calibration.series.keys()) + 1
+        opts['name'] = 'Manual series {}'.format(l)
+        opts['calibration'] = self.calibration
+        super(self.__class__, self).addNew(**opts)
 
 
 class CalibrationGroupParameter(CustomGroupParameter):
@@ -524,9 +530,5 @@ class CalibrationGroupParameter(CustomGroupParameter):
     def addNew(self, scan_name = 'None', main_analyzer = None,
         first_frame = 0, last_frame = 0):
         opts = {}
-        opts['name'] = 'Calibration {}'.format(len(xes.experiment.calibrations) + 1)
-        opts['elastic_scan'] = scan_name
-        opts['first_frame'] = first_frame
-        opts['last_frame'] = last_frame
-        opts['main_analyzer'] = main_analyzer
+        opts['name'] = 'Energy calibration {}'.format(len(xes.experiment.calibrations) + 1)
         super(self.__class__, self).addNew(**opts)

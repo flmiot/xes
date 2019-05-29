@@ -85,3 +85,16 @@ class BGRoiTree(ParameterTree):
 
     def polyfit_all_bgrois(self):
         pass
+
+
+class CalibrationTree(ParameterTree):
+
+    def __init__(self, parent):
+        super(CalibrationTree, self).__init__(showHeader = False)
+        par = Parameter.create(type='calibrationGroup', child_type='manualCalibration')
+        self.setParameters(par, showTop=False)
+        par.sigUpdate.connect(self.handler)
+
+
+    def handler(self, parameter):
+        pass

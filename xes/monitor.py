@@ -4,6 +4,8 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 import matplotlib.cm as cm
 
+import xes
+
 class Monitor(QtGui.QWidget):
 
     sigAnalyzerRoiChanged = QtCore.Signal()
@@ -69,8 +71,8 @@ class Monitor(QtGui.QWidget):
         self.title.setText('<font color="white" size="2"><b>'+name+'</b>')
 
     def call_for_plot_update(self):
-        if self.master.plot.buttons['single_image'].isChecked():
-            self.master.plot.update_plot()
+        if xes.gui.actionSingleImage.isChecked():
+            xes.gui.plot.update_plot()
 
 
     def add_analyzer_roi(self, roi):
@@ -93,6 +95,11 @@ class Monitor(QtGui.QWidget):
             rateLimit=2, delay = 0.1, slot = self.update_analyzer)
 
         self.proxies.append(proxy)
+
+
+    def add_calibration_roi(self, roi):
+        vb = self.image_view.getView()
+        vb.addItem(roi)
 
 
     def update_analyzer(self, *args):

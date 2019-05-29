@@ -5,6 +5,12 @@ import matplotlib.cm as cm
 
 import xes
 
+import logging
+Log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
+
+
 class Plot(QtGui.QWidget):
 
     def __init__(self, *args, **kwargs):
@@ -185,70 +191,51 @@ class Plot(QtGui.QWidget):
         #layout.addWidget(controlWidget)
         self.buttons = buttons
 
-    def switch_to_scanning_type(self):
-
-        self.plot.plotItem.enableAutoRange()
-        self.update_plot_manually()
-
-
     def update_plot(self):
         if not xes.gui.actionAutoUpdate.isChecked():
             return
         self.update_plot_manually()
 
-
-
     def update_plot_manually(self):
-        # try:
-        self.clear_plot()
-
-        single_scans = xes.gui.actionSingleScans.isChecked()
-        single_analyzers = xes.gui.actionSingleAnalyzers.isChecked()
-        subtract_background = xes.gui.actionSubtractBackground.isChecked()
-        normalize = xes.gui.actionNormalize.isChecked()
-        scanning_type = xes.gui.actionScanningType.isChecked()
-        # normalize_scans = xes.gui.actionSingleScans.isChecked()
-        # normalize_analyzers = xes.gui.actionSingleScans.isChecked()
-
         try:
-            slices = int(self.slices_input.text())
-        except:
-            slices = 1
+            self.clear_plot()
 
-        if xes.gui.actionSingleImage.isChecked():
-            single_image = xes.gui.get_selected_image_index()
-            self.slices_input.setEnabled(True)
-        else:
-            single_image = None
-            self.slices_input.setDisabled(True)
+            single_scans = xes.gui.actionSingleScans.isChecked()
+            single_analyzers = xes.gui.actionSingleAnalyzers.isChecked()
+            subtract_background = xes.gui.actionSubtractBackground.isChecked()
+            normalize = xes.gui.actionNormalize.isChecked()
+            scanning_type = xes.gui.actionScanningType.isChecked()
+            # normalize_scans = xes.gui.actionSingleScans.isChecked()
+            # normalize_analyzers = xes.gui.actionSingleScans.isChecked()
+
+            try:
+                slices = int(self.slices_input.text())
+            except:
+                slices = 1
+
+            if xes.gui.actionSingleImage.isChecked():
+                single_image = xes.gui.monitor1.image_view.currentIndex
+                self.slices_input.setEnabled(True)
+            else:
+                single_image = None
+                self.slices_input.setDisabled(True)
 
 
-        analysis_result = xes.experiment.get_spectrum()
+            analysis_result = xes.experiment.get_spectrum()
 
 
-        # Plot current data:
-        self._plot(analysis_result, single_analyzers, single_scans,
-            scanning_type, subtract_background, normalize, single_image,
-            slices, False, False)
+            # Plot current data:
+            self._plot(analysis_result, single_analyzers, single_scans,
+                scanning_type, subtract_background, normalize, single_image,
+                slices, False, False)
 
         # Update diagnostics plots
         # diag = xes.gui.diagnostics
         # diag.update_energy_fit(analysis_result)
 
-
-        # # Plot ghosts
-        # if self.buttons['ghost'].isChecked():
-        #     for ind, g in enumerate(self.ghosts):
-        #         if ind > 45:
-        #             break
-        #         self._plot(*g)
-        #     self.ghosts.append([e,i, b, single_analyzers, single_scans])
-        # else:
-        #     self.ghosts = []
-
-        # except Exception as e:
-        #     fmt = 'Plot update failed: {}'.format(e)
-        #     Log.error(fmt)
+        except Exception as e:
+            fmt = 'Plot update failed: {}'.format(e)
+            Log.error(fmt)
 
 
     def _plot(self, analysis_result, single_analyzers = True, single_scans = True,

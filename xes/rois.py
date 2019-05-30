@@ -63,11 +63,11 @@ class ManualCalibrationROI(pg.ROI):
 
         pg.ROI.__init__(self, pos=position, size=size, pen = pen) #, scaleSnap=True, translateSnap=True)
         self.addScaleHandle([1, 1], [0, 0])
-        self.addScaleHandle([0, 0], [1, 1])
-        self.addScaleHandle([0, 1], [1, 0])
-        self.addScaleHandle([1, 0], [0, 1])
-        self.addScaleHandle([0.5, 1], [0.5, 0])
-        self.addScaleHandle([0.5, 0], [0.5, 1])
+        # self.addScaleHandle([0, 0], [1, 1])
+        # self.addScaleHandle([0, 1], [1, 0])
+        # self.addScaleHandle([1, 0], [0, 1])
+        # self.addScaleHandle([0.5, 1], [0.5, 0])
+        # self.addScaleHandle([0.5, 0], [0.5, 1])
 
         self.calibrationRoi = CalibrationRoi(name)
         x0,y0 = position[0] - size[0], position[1] - size[1]

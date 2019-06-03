@@ -471,16 +471,14 @@ class BGRoiGroupParameter(CustomGroupParameter):
 
 class ManualCalibrationEnergyPointParameter(parameterTypes.SimpleParameter):
     def __init__(self, **opts):
-        self.roi = ManualCalibrationROI(opts['name'], opts['position'], opts['size'],
-            xes.gui.monitor1)
         opts['type'] = 'float'
         opts['suffix'] = 'eV'
         opts['value'] = 5000.
         opts['decimals'] = 6
-        # c = []
-        # c.append({'name': 'Energy', 'type':'float', 'value': 9600.5})
-        # opts['children'] = c
         super(self.__class__, self).__init__(**opts)
+        self.roi = ManualCalibrationROI(opts['name'], opts['position'], opts['size'],
+            xes.gui.monitor1)
+
 
 class ManualCalibrationSeriesParameter(CustomGroupParameter):
     def __init__(self, **opts):
@@ -493,13 +491,13 @@ class ManualCalibrationSeriesParameter(CustomGroupParameter):
 
     def addNew(self, position = [128,128], size = [20,20], angle = 0.0):
         opts = {}
-        l = len(self.opts['calibration'].series[self.opts['name']]) + 1
+        l = len(self.opts['calibration'].series[self.opts['name']]['energies']) + 1
         opts['name'] = 'Energy ({})'.format(l)
         opts['calibration'] = self.opts['calibration']
-        opts['calibration'].add_energy_point(self.opts['name'], 0, 0)
         opts['position'] = position
         opts['size'] = size
         super(self.__class__, self).addNew(**opts)
+        opts['calibration'].add_energy_point(self.opts['name'], 0, self.child(opts['name']).roi)
 
 
 class ManualCalibrationParameter(CustomGroupParameter):
@@ -512,6 +510,7 @@ class ManualCalibrationParameter(CustomGroupParameter):
         super(self.__class__, self).__init__(**opts)
         self.addChild({'name': 'Monitor: Show', 'type': 'bool', 'value': True})
         self.addChild({'name': 'Fit active scans', 'type': 'action'})
+        self.child('Fit active scans').sigActivated.connect(self.calibration.fit_series)
 
     def addNew(self, scan_name = 'None', main_analyzer = None,
         first_frame = 0, last_frame = 0):

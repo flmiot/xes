@@ -801,27 +801,71 @@ class ManualCalibration(object):
     def __init__(self):
         self.name           = None
         self.series         = {}
-        self.calibrationRois= []
+        self.fits           = {}
 
 
     def add_series(self, series):
-        self.series[series] = []
+        self.series[series] = dict(rois = [], energies = [], y_pos = None)
 
-    def add_energy_point(self, series, energy, pixel_position):
-        self.series[series].append([energy, pixel_position])
+
+    def add_energy_point(self, series, energy, new_roi):
+        self.series[series]['rois'].append(new_roi)
+        self.series[series]['energies'].append(energy)
+        y_pos = 0
+        for roi in self.series[series]['rois']:
+            y_pos += roi.pos()[0]
+        y_pos /= len(self.series[series]['rois'])
+        self.series[series]['y_pos'] = y_pos
+
+
+    def fit_series(self, image):
+        Log.debug('Fitting all series for calibration {}'.format(self.name))
+        for s_key, s_val in self.series.items():
+            x = [r.get_pixel_position(image)['x'] for r in s_val['rois']]
+            y = s_val['energies']
+            self.fits[s_key] = np.poly1d(np.polyfit(x, y, 3))
+
 
     def get_energy_axis(self, analyzer):
-        pass
+        y, x = analyzer.pos()
+        diffs = [np.abs(y - s['y_pos']) for s in self.series.values()]
+        s_key = self.series.keys()[diffs.index(min(diffs))]
+        fit = self.fits[s_key]
 
 
 
 class CalibrationRoi(Analyzer):
     def __init__(self, *args, **kwargs):
-        self.display        = True
-        self.energy         = 0.0
-        self.pixel_position = 0
-        super(self.__class__, self).__init__(self)
+        print('CalibrationRoi', *args, **kwargs)
+        Analyzer.__init__(self, *args, **kwargs)
 
+
+    def get_pixel_position(self, image):
+        x0,y0,x1,y1 = self.clip_roi(self.roi, image.shape)
+        x               = np.arange(image.shape[1])
+        y               = np.arange(image.shape[0])
+        integrated_y    = np.sum(image[y0:y1+1,:], axis = 0)
+        integrated_x    = np.sum(image[:,x0:x1+1], axis = 1)
+        com_x           = self._center_of_mass(x, integrated_y)
+        com_y           = self._center_of_mass(y, integrated_x)
+        return dict(x = com_x, y = com_y)
+
+
+    def _center_of_mass(self, x, y, epsilon = 5):
+        """Find center of mass."""
+        x_max = np.argmax(y)
+        x_lower = x_max - epsilon
+        x_upper = x_max + epsilon
+
+        if x_lower < 0 or x_upper >= len(y):
+            raise Exception("The peak seems to be to close to the edge!")
+
+        x_cutout = np.arange(x_lower, x_upper+1)
+        y_cutout = y[x_cutout]
+
+        cumsum = np.cumsum(y_cutout)
+        f = interp.interp1d(cumsum, x_cutout)
+        return float(f(0.5*np.max(cumsum)))
 
 
 class Calibration(object):

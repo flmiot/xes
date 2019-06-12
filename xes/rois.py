@@ -2,7 +2,7 @@ import pyqtgraph as pg
 from pyqtgraph import QtCore, QtGui
 
 import xes
-from xes.analysis import Analyzer, CalibrationRoi
+from xes.analysis import Analyzer
 
 class AnalyzerROI(pg.ROI):
     def __init__(self, name, position, size, monitor): #angle
@@ -29,7 +29,7 @@ class AnalyzerROI(pg.ROI):
 
 
 class BackgroundROI(pg.ROI):
-    def __init__(self, name, position, size, monitor): # angle,
+    def __init__(self, name, position, size, monitor): # angle
         # Make this a different color
 
         # Use a custom pen to differentiate this ROI from the signal ROIs
@@ -41,7 +41,6 @@ class BackgroundROI(pg.ROI):
         self.addScaleHandle([0, 0], [1, 1])
         self.addScaleHandle([0, 1], [1, 0])
         self.addScaleHandle([1, 0], [0, 1])
-
         self.addScaleHandle([0.5, 1], [0.5, 0])
         self.addScaleHandle([0.5, 0], [0.5, 1])
 
@@ -56,19 +55,10 @@ class BackgroundROI(pg.ROI):
 
 
 class ManualCalibrationROI(pg.ROI):
-    def __init__(self, *args, **kwargs):
-        print(*args, **kwargs)
+    def __init__(self, name, position, size, monitor):
         # Use a custom pen to differentiate this ROI from the signal ROIs
         c = QtGui.QColor(*[0, 255, 0])
         pen = pg.mkPen(color=c)
-        pg.ROI.__init__(self, *args, **kwargs)
+        pg.ROI.__init__(self, pos=position, size=size, pen = pen)
         self.addScaleHandle([1, 1], [0, 0])
-        print(*args, **kwargs)
-        self.roi = CalibrationRoi(self, *args, **kwargs)
-        x0,y0 = position[0] - size[0], position[1] - size[1]
-        x1,y1 = position[0] + size[0], position[1] + size[1]
-        self.roi.set_roi([x0,y0,x1,y1])
-        self.roi.set_mask( mask = [195, 487] )
-        # xes.experiment.add_background_roi(self.analyzer)
-        # self.setToolTip(self.calibrationRoi.name)
         monitor.add_calibration_roi(self)

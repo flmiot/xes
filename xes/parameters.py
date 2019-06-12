@@ -1,13 +1,16 @@
 import re
 import logging
+import numpy as np
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.parametertree import Parameter, parameterTypes, registerParameterType
 
 import xes
-from xes.analysis import ManualCalibration, Calibration
+from xes.analysis import ManualCalibration, Calibration, CalibrationPoint
 from xes.rois import AnalyzerROI, BackgroundROI, ManualCalibrationROI
+
+import matplotlib.pyplot as plt
 
 Log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -219,22 +222,23 @@ class ScanParameter(CustomParameter):
         monitor_sum = opts['monitor_sum']
         offset_x = opts['offset_x']
         offset_y = opts['offset_y']
-        elastic = opts['elastic']
+        calibration = opts['calibration']
         elastic_range = opts['elastic_range']
 
 
         xes.experiment.add_scan(scan)
         names = ['None']
-        names.extend(list([s.name for s in xes.experiment.scans]))
+        print(xes.experiment.calibrations)
+        names.extend(list([s.name for s in xes.experiment.calibrations]))
 
-        if not elastic in names:
-            names.append(elastic)
+        if not calibration in names:
+            names.append(calibration)
 
         c = []
         c.append({'name': 'Include', 'type':'bool', 'value':include})
         c.append({'name': 'Monitor: SUM', 'type':'bool', 'value':monitor_sum})
-        c.append({'name': 'Elastic scan', 'type':'list', 'values': names,
-            'value':elastic})
+        c.append({'name': 'Calibration', 'type':'list', 'values': names,
+            'value':calibration})
         c.append({'name': 'Range', 'type':'str', 'value': elastic_range})
         c.append({'name': 'Images', 'type':'int', 'value':0,
             'readonly': True})
@@ -255,8 +259,7 @@ class ScanParameter(CustomParameter):
         # self.scan.offset[0] = self.child('Offset (x)').value()
         # self.scan.offset[1] = self.child('Offset (y)').value()
 
-        calibration = Calibration()
-        elastic_name = self.child('Elastic scan').value()
+
 
         # print(self.child('Elastic range').value())
         matches = re.findall(r'(\d+)', self.child('Range').value())
@@ -264,12 +267,21 @@ class ScanParameter(CustomParameter):
             self.scan.range = list([int(d) for d in matches])
             self.scan.range[1] += 1
 
-        if elastic_name != "None":
-            ind = list([s.name for s in xes.experiment.scans]).index(elastic_name)
-            elastic_scan = xes.experiment.scans[ind]
-            calibration.elastic_scan = elastic_scan
+        calibration_name = self.child('Calibration').value()
+        if calibration_name != 'None':
+            try:
+                calibration_names = []
+                for c in xes.experiment.calibrations:
+                    if c is None:
+                        calibration_names.append("None")
+                    else:
+                        calibration_names.append(c.name)
 
-        xes.experiment.change_calibration(self.scan, calibration)
+                index = calibration_names.index(calibration_name)
+                calibration = xes.experiment.calibrations[index]
+                xes.experiment.change_calibration(self.scan, calibration)
+            except:
+                Log.debug("Calibration could not be assigned.")
 
             # ind = list([s.name for s in experiment.scans]).index(self.scan.name)
             # experiment.elastic_scans[ind] = elastic_scan
@@ -292,9 +304,9 @@ class ScanParameter(CustomParameter):
 
     def update_lists(self):
         d = dict()
-        elastic_scans = ['None']
-        elastic_scans.extend(list([s.name for s in xes.experiment.scans]))
-        d['Elastic scan'] = elastic_scans
+        calibrations = ['None']
+        calibrations.extend(list([c.name for c in xes.experiment.calibrations]))
+        d['Calibration'] = calibrations
         # l = ['None']
         # l.extend(list([b.name for b in experiment.bg_models]))
         # d['Background model'] = l
@@ -419,7 +431,7 @@ class ScanGroupParameter(CustomGroupParameter):
 
 
     def addNew(self, scan = None, include = True, scanning_type = False,
-        monitor_sum = True, elastic = "None", offset_x = 0, offset_y = 0,
+        monitor_sum = True, calibration = "None", offset_x = 0, offset_y = 0,
         range = None, slices = 5):
         """
         Will switch to interactive mode and ask for a scan to open if no scan is
@@ -444,7 +456,7 @@ class ScanGroupParameter(CustomGroupParameter):
         opts['monitor_sum'] = monitor_sum
         opts['offset_x'] = offset_x
         opts['offset_y'] = offset_y
-        opts['elastic'] = elastic
+        opts['calibration'] = calibration
         opts['elastic_range'] = range
 
         super(self.__class__, self).addNew(**opts)
@@ -470,14 +482,37 @@ class BGRoiGroupParameter(CustomGroupParameter):
 
 
 class ManualCalibrationEnergyPointParameter(parameterTypes.SimpleParameter):
+
+    sigUpdate       = QtCore.Signal(object)
+
     def __init__(self, **opts):
         opts['type'] = 'float'
         opts['suffix'] = 'eV'
         opts['value'] = 5000.
         opts['decimals'] = 6
         super(self.__class__, self).__init__(**opts)
-        self.roi = ManualCalibrationROI(opts['name'], opts['position'], opts['size'],
+
+        self.roi    = ManualCalibrationROI(opts['name'], opts['position'], opts['size'],
             xes.gui.monitor1)
+
+        x0,y0 = opts['position'][0] - opts['size'][0],opts['position'][1] - opts['size'][1]
+        x1,y1 = opts['position'][0] + opts['size'][0], opts['position'][1] + opts['size'][1]
+        self.point  = CalibrationPoint(
+            energy = 0.,
+            name = opts['name'],
+            roi = [x0,y0,x1,y1],
+            mask = [195, 487])
+
+        self.sigValueChanged.connect(self.update)
+        # xes.experiment.add_background_roi(self.analyzer)
+        # self.setToolTip(self.calibrationRoi.name)
+        opts['calibration'].add_calibration_point(opts['series_name'], self.point)
+
+
+    def update(self, *args, **kwargs):
+        print("Energy point udpate")
+        self.point.energy   = float(self.value())
+        self.point.roi      = xes.gui.monitor1.get_roi_coordinates(self.roi)
 
 
 class ManualCalibrationSeriesParameter(CustomGroupParameter):
@@ -491,13 +526,14 @@ class ManualCalibrationSeriesParameter(CustomGroupParameter):
 
     def addNew(self, position = [128,128], size = [20,20], angle = 0.0):
         opts = {}
-        l = len(self.opts['calibration'].series[self.opts['name']]['energies']) + 1
+        l = len(self.opts['calibration'].series[self.opts['name']]['points']) + 1
         opts['name'] = 'Energy ({})'.format(l)
         opts['calibration'] = self.opts['calibration']
         opts['position'] = position
         opts['size'] = size
+        opts['series_name'] = self.opts['name']
         super(self.__class__, self).addNew(**opts)
-        opts['calibration'].add_energy_point(self.opts['name'], 0, self.child(opts['name']).roi)
+
 
 
 class ManualCalibrationParameter(CustomGroupParameter):
@@ -510,7 +546,8 @@ class ManualCalibrationParameter(CustomGroupParameter):
         super(self.__class__, self).__init__(**opts)
         self.addChild({'name': 'Monitor: Show', 'type': 'bool', 'value': True})
         self.addChild({'name': 'Fit active scans', 'type': 'action'})
-        self.child('Fit active scans').sigActivated.connect(self.calibration.fit_series)
+        self.child('Fit active scans').sigActivated.connect(self.fit_series)
+
 
     def addNew(self, scan_name = 'None', main_analyzer = None,
         first_frame = 0, last_frame = 0):
@@ -519,6 +556,15 @@ class ManualCalibrationParameter(CustomGroupParameter):
         opts['name'] = 'Manual series {}'.format(l)
         opts['calibration'] = self.calibration
         super(self.__class__, self).addNew(**opts)
+
+
+    def fit_series(self, *args):
+        active_scans = list([s for s in xes.experiment.scans if s.active])
+        shape = active_scans[0].images.shape[1:]
+        image = np.zeros(shape)
+        for scan in active_scans:
+            image += np.sum(scan.images, axis = 0)
+        self.calibration.fit_series(image)
 
 
 class CalibrationGroupParameter(CustomGroupParameter):

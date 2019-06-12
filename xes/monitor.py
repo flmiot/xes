@@ -81,7 +81,7 @@ class Monitor(QtGui.QWidget):
         # roi.sigRegionChangeFinished.connect(self.update_analyzer)
 
         proxy = pg.SignalProxy(roi.sigRegionChanged,
-            rateLimit=2, delay = 0.1, slot = self.update_analyzer)
+            rateLimit=2, delay = 0.0, slot = self.update_analyzer)
 
         self.proxies.append(proxy)
 
@@ -92,7 +92,7 @@ class Monitor(QtGui.QWidget):
         # roi.sigRegionChangeFinished.connect(self.update_analyzer)
 
         proxy = pg.SignalProxy(roi.sigRegionChanged,
-            rateLimit=2, delay = 0.1, slot = self.update_analyzer)
+            rateLimit=2, delay = 0.0, slot = self.update_analyzer)
 
         self.proxies.append(proxy)
 
@@ -103,6 +103,7 @@ class Monitor(QtGui.QWidget):
 
 
     def update_analyzer(self, *args):
+
 
         roi = args[0][0]
 
@@ -136,6 +137,30 @@ class Monitor(QtGui.QWidget):
 
         roi.analyzer.set_roi(bbox)
         self.sigAnalyzerRoiChanged.emit()
+
+
+    def get_roi_coordinates(self, roi):
+
+        if self.image_view.image is None:
+            return
+
+        image = self.image_view.getProcessedImage()
+
+        # Extract image data from ROI
+        axes = (self.image_view.axes['x'], self.image_view.axes['y'])
+
+        _, coords = roi.getArrayRegion(image.view(np.ndarray),
+            self.image_view.imageItem, axes, returnMappedCoords=True)
+
+        if coords is None:
+            return
+
+        # get bounding box
+        x,y = coords[0].flatten(), coords[1].flatten()
+        x0, x1 = np.min(x), np.max(x)
+        y0, y1 = np.min(y), np.max(y)
+        bbox = list([int(i) for i in [x0,y0,x1,y1]])
+        return bbox
 
 
     def _update_cursor_position(self, event):

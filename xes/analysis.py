@@ -384,13 +384,9 @@ class Experiment(object):
         self.bg_rois.append(bg_roi)
 
 
-    def add_scan(self, scan, calibration = None):
-        """Add a scan object. Specify scan and corresponding calibration.
-        """
-
-
+    def add_scan(self, scan):
+        """Add a scan object. Specify scan."""
         self.scans.append(scan)
-        self.calibrations.append(calibration)
 
 
     def remove_scan(self, scan_name):
@@ -601,7 +597,7 @@ class Scan(object):
 
 
 class Analyzer(object):
-    def __init__(self, name):
+    def __init__(self, name, roi = None, mask = None):
         """
         Analyzers have a
         property called *active*, which can be used to include/exclude them when
@@ -616,6 +612,12 @@ class Analyzer(object):
         self.mask               = None
         self.poly_fit           = False
         self.poly_order         = 6
+
+        if roi is not None:
+            self.set_roi(roi)
+
+        if mask is not None:
+            self.set_mask(mask)
 
 
     def size(self, mask = None):
@@ -805,25 +807,30 @@ class ManualCalibration(object):
 
 
     def add_series(self, series):
-        self.series[series] = dict(rois = [], energies = [], y_pos = None)
+        self.series[series] = dict(points = [], y_pos = [])
 
 
-    def add_energy_point(self, series, energy, new_roi):
-        self.series[series]['rois'].append(new_roi)
-        self.series[series]['energies'].append(energy)
+    def add_calibration_point(self, series, new_point):
+        self.series[series]['points'].append(new_point)
+
         y_pos = 0
-        for roi in self.series[series]['rois']:
-            y_pos += roi.pos()[0]
-        y_pos /= len(self.series[series]['rois'])
+        positions = [p.pos() for p in self.series[series]['points']]
+        for pos in positions:
+            y_pos += pos[0]
+        y_pos /= len(self.series[series]['points'])
         self.series[series]['y_pos'] = y_pos
 
 
     def fit_series(self, image):
         Log.debug('Fitting all series for calibration {}'.format(self.name))
         for s_key, s_val in self.series.items():
-            x = [r.get_pixel_position(image)['x'] for r in s_val['rois']]
-            y = s_val['energies']
+            x = [p.get_pixel_position(image)['x'] for p in s_val['points']]
+            y = [p.energy for p in s_val['points']]
             self.fits[s_key] = np.poly1d(np.polyfit(x, y, 3))
+            print(self.fits[s_key])
+            plt.plot(x, y)
+            plt.plot(x, self.fits[s_key](x))
+            plt.show()
 
 
     def get_energy_axis(self, analyzer):
@@ -834,20 +841,26 @@ class ManualCalibration(object):
 
 
 
-class CalibrationRoi(Analyzer):
-    def __init__(self, *args, **kwargs):
-        print('CalibrationRoi', *args, **kwargs)
+class CalibrationPoint(Analyzer):
+    def __init__(self, energy, *args, **kwargs):
         Analyzer.__init__(self, *args, **kwargs)
+        self.energy = energy
 
 
     def get_pixel_position(self, image):
-        x0,y0,x1,y1 = self.clip_roi(self.roi, image.shape)
-        x               = np.arange(image.shape[1])
-        y               = np.arange(image.shape[0])
-        integrated_y    = np.sum(image[y0:y1+1,:], axis = 0)
-        integrated_x    = np.sum(image[:,x0:x1+1], axis = 1)
-        com_x           = self._center_of_mass(x, integrated_y)
-        com_y           = self._center_of_mass(y, integrated_x)
+        # x0,y0,x1,y1 = self.clip_roi(self.roi, image.shape)
+        # print(x0,y0,x1,y1)
+        # x               = np.arange(image.shape[1])
+        # y               = np.arange(image.shape[0])
+        # integrated_y    = np.sum(image[y0:y1+1,:], axis = 0)
+        # integrated_x    = np.sum(image[:,x0:x1+1], axis = 1)
+        # plt.plot(integrated_x)
+        # plt.show()
+        # plt.plot(integrated_y)
+        # plt.show()
+        # com_x           = self._center_of_mass(x, integrated_y[x0:x1+1]) + x0
+        # com_y           = self._center_of_mass(y, integrated_x[y0:y1+1]) + y0
+        com_y, com_x = self.pos()
         return dict(x = com_x, y = com_y)
 
 

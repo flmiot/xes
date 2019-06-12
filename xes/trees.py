@@ -97,4 +97,5 @@ class CalibrationTree(ParameterTree):
 
 
     def handler(self, parameter):
-        pass
+        param = xes.gui.tree_runs.invisibleRootItem().child(0).param
+        param.update_lists()

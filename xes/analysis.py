@@ -319,20 +319,20 @@ class Experiment(object):
 
         for scan in active_scans:
 
-            index = self.scans.index(scan)
+            # index = self.scans.index(scan)
 
-            # Calibrate analyzers
-            try:
-                calibration = self.calibrations[index]
-                calibration.calibrate_energy_for_analyzers(
-                    analyzers = active_analyzers)
-            except Exception as e:
-                calibration = None
-                fmt = "Energy calibration for scan {} failed: {}."
-                Log.error(fmt.format(scan.name, e))
+            # # Calibrate analyzers
+            # try:
+            #     calibration = self.calibrations[index]
+            #     calibration.calibrate_energy_for_analyzers(
+            #         analyzers = active_analyzers)
+            # except Exception as e:
+            #     calibration = None
+            #     fmt = "Energy calibration for scan {} failed: {}."
+            #     Log.error(fmt.format(scan.name, e))
 
             in_e, out_e, inte, back, fit = scan.get_energy_spectrum(active_analyzers,
-                active_background_rois, calibration)
+                active_background_rois)
 
             d = {scan.name : list([a.name for a in active_analyzers])}
             result.add_data(in_e, out_e, inte, back, fit, d)
@@ -437,6 +437,7 @@ class Scan(object):
         self.monitor        = None
         self.active         = True
         # self.bg_model     = None
+        self.calibration    = None
         self.loaded         = False
         self.offset         = [0,0]
         self.range          = [0, len(image_files)]
@@ -553,8 +554,7 @@ class Scan(object):
                 pixel_wise = pixel_wise)
 
 
-    def get_energy_spectrum(self, analyzers, background_rois,
-        calibration = None):
+    def get_energy_spectrum(self, analyzers, background_rois):
 
         in_e = np.array(self.energies)
         out_e = np.empty((len(analyzers)), dtype = list)
@@ -562,10 +562,12 @@ class Scan(object):
         background = np.empty((len(analyzers), len(in_e)), dtype = list)
         fits = np.empty((len(analyzers)), dtype = list)
 
+        print("Calibration:", self.calibration)
+
         for ind, an in enumerate(analyzers):
             b, s, bg, fit = an.get_signal_series(images = self.images,
                 background_rois = background_rois,
-                calibration = calibration)
+                calibration = self.calibration)
 
             out_e[ind] = b
             intensity[ind] = s
@@ -836,8 +838,13 @@ class ManualCalibration(object):
     def get_energy_axis(self, analyzer):
         y, x = analyzer.pos()
         diffs = [np.abs(y - s['y_pos']) for s in self.series.values()]
-        s_key = self.series.keys()[diffs.index(min(diffs))]
+        s_key = list(self.series.keys())[diffs.index(min(diffs))]
         fit = self.fits[s_key]
+
+        x0, _, x1, _ = analyzer.get_roi()
+        x = np.arange(x0, x1+1)
+
+        return fit(x), fit
 
 
 

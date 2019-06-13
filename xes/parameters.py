@@ -255,33 +255,29 @@ class ScanParameter(CustomParameter):
 
 
     def update(self, parameter):
-        self.scan.active =  self.child('Include').value()
         # self.scan.offset[0] = self.child('Offset (x)').value()
         # self.scan.offset[1] = self.child('Offset (y)').value()
-
-
-
         # print(self.child('Elastic range').value())
-        matches = re.findall(r'(\d+)', self.child('Range').value())
         if self.scan.loaded:
+            self.scan.active =  self.child('Include').value()
+            matches = re.findall(r'(\d+)', self.child('Range').value())
             self.scan.range = list([int(d) for d in matches])
             self.scan.range[1] += 1
 
-        calibration_name = self.child('Calibration').value()
-        if calibration_name != 'None':
-            try:
-                calibration_names = []
-                for c in xes.experiment.calibrations:
-                    if c is None:
-                        calibration_names.append("None")
-                    else:
-                        calibration_names.append(c.name)
-
-                index = calibration_names.index(calibration_name)
-                calibration = xes.experiment.calibrations[index]
-                xes.experiment.change_calibration(self.scan, calibration)
-            except:
-                Log.debug("Calibration could not be assigned.")
+            calibration_name = self.child('Calibration').value()
+            if calibration_name == 'None':
+                self.scan.calibration = None
+            else:
+                try:
+                    calibration_names = []
+                    for c in xes.experiment.calibrations:
+                        if not c is None:
+                            calibration_names.append(c.name)
+                    index = calibration_names.index(calibration_name)
+                    calibration = xes.experiment.calibrations[index]
+                    self.scan.calibration = calibration
+                except Exception as e:
+                    Log.error("Calibration could not be assigned: {}".format(e))
 
             # ind = list([s.name for s in experiment.scans]).index(self.scan.name)
             # experiment.elastic_scans[ind] = elastic_scan
